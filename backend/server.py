@@ -1757,6 +1757,187 @@ async def saku_aman(user: dict = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
+# Savings & Goals — tabungan bebas (`goal`) atau dana tagihan tahunan
+# (`annual_fund`). Opt-in dan manual (docs/DATA_MODEL.md §7 #3): user harus
+# sudah punya `obligation` tahunan lalu menautkannya sendiri — tidak pernah
+# auto-dibuat. Freemium: max goal aktif sama pola dengan obligations
+# (`PLANS["free"]["max_goals_active"]`).
+# ---------------------------------------------------------------------------
+GOAL_KINDS = {"goal", "annual_fund"}
+
+
+class GoalBody(BaseModel):
+    name: str
+    target_amount: float
+    deadline: Optional[str] = None          # YYYY-MM-DD
+    kind: str = "goal"                      # goal | annual_fund
+    linked_obligation_id: Optional[str] = None
+
+
+class GoalDepositBody(BaseModel):
+    amount: float
+    date: Optional[str] = None              # YYYY-MM-DD, default hari ini
+
+
+def goal_public(g: dict) -> dict:
+    target = g.get("target_amount", 0)
+    current = g.get("current_amount", 0)
+    deadline = g.get("deadline")
+    remaining = target - current
+    suggested_monthly = None
+    if deadline and remaining > 0:
+        try:
+            today = date.today()
+            dl = date.fromisoformat(deadline)
+            months_left = max(
+                1,
+                (dl.year - today.year) * 12 + (dl.month - today.month)
+                + (1 if dl.day >= today.day else 0),
+            )
+            suggested_monthly = round(remaining / months_left)
+        except Exception:
+            suggested_monthly = None
+    return {
+        "id": g["id"],
+        "name": g.get("name"),
+        "target_amount": target,
+        "current_amount": current,
+        "deadline": deadline,
+        "kind": g.get("kind", "goal"),
+        "linked_obligation_id": g.get("linked_obligation_id"),
+        "progress_pct": round(min(100, (current / target * 100)) if target > 0 else 0, 1),
+        "suggested_monthly_deposit": suggested_monthly,
+        "created_at": g.get("created_at"),
+    }
+
+
+async def active_goal_count(user_id: str) -> int:
+    return await db.savings_goals.count_documents({"user_id": user_id, "deleted_at": None})
+
+
+async def _validate_linked_obligation(user_id: str, obligation_id: str):
+    obligation = await db.obligations.find_one(
+        {"id": obligation_id, "user_id": user_id, "deleted_at": None})
+    if not obligation:
+        raise HTTPException(status_code=404, detail="Kewajiban yang ditautkan tidak ditemukan")
+
+
+@api_router.get("/goals")
+async def list_goals(user: dict = Depends(get_current_user)):
+    docs = await db.savings_goals.find(
+        {"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return {"goals": [goal_public(d) for d in docs]}
+
+
+@api_router.post("/goals")
+async def create_goal(body: GoalBody, user: dict = Depends(get_current_user)):
+    if body.kind not in GOAL_KINDS:
+        raise HTTPException(status_code=422, detail="Jenis goal tidak dikenal")
+    if body.target_amount <= 0:
+        raise HTTPException(status_code=422, detail="Target harus lebih dari 0")
+    if user.get("plan", "free") == "free":
+        count = await active_goal_count(user["user_id"])
+        limit = PLANS["free"]["max_goals_active"]
+        if count >= limit:
+            raise HTTPException(
+                status_code=403,
+                detail={"code": "limit_reached",
+                        "message": f"Paket gratis maksimal {limit} goal aktif."},
+            )
+    if body.kind == "annual_fund":
+        if not body.linked_obligation_id:
+            raise HTTPException(
+                status_code=422,
+                detail="Dana tagihan tahunan harus ditautkan ke kewajiban yang sudah ada",
+            )
+        await _validate_linked_obligation(user["user_id"], body.linked_obligation_id)
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        **body.model_dump(),
+        "current_amount": 0.0,
+        "deleted_at": None,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.savings_goals.insert_one(doc)
+    return {"goal": goal_public(doc)}
+
+
+@api_router.get("/goals/{goal_id}")
+async def get_goal(goal_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.savings_goals.find_one(
+        {"id": goal_id, "user_id": user["user_id"], "deleted_at": None}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Goal tidak ditemukan")
+    return {"goal": goal_public(doc)}
+
+
+@api_router.put("/goals/{goal_id}")
+async def update_goal(goal_id: str, body: GoalBody, user: dict = Depends(get_current_user)):
+    if body.kind not in GOAL_KINDS:
+        raise HTTPException(status_code=422, detail="Jenis goal tidak dikenal")
+    if body.target_amount <= 0:
+        raise HTTPException(status_code=422, detail="Target harus lebih dari 0")
+    doc = await db.savings_goals.find_one(
+        {"id": goal_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Goal tidak ditemukan")
+    if body.kind == "annual_fund" and body.linked_obligation_id:
+        await _validate_linked_obligation(user["user_id"], body.linked_obligation_id)
+    update = body.model_dump()
+    await db.savings_goals.update_one({"id": goal_id}, {"$set": update})
+    updated = await db.savings_goals.find_one({"id": goal_id}, {"_id": 0})
+    return {"goal": goal_public(updated)}
+
+
+@api_router.delete("/goals/{goal_id}")
+async def delete_goal(goal_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.savings_goals.find_one(
+        {"id": goal_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Goal tidak ditemukan")
+    await db.savings_goals.update_one(
+        {"id": goal_id}, {"$set": {"deleted_at": now_utc().isoformat()}})
+    return {"status": "deleted"}
+
+
+@api_router.post("/goals/{goal_id}/deposit")
+async def deposit_to_goal(goal_id: str, body: GoalDepositBody, user: dict = Depends(get_current_user)):
+    if body.amount <= 0:
+        raise HTTPException(status_code=422, detail="Nominal setoran harus lebih dari 0")
+    doc = await db.savings_goals.find_one(
+        {"id": goal_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Goal tidak ditemukan")
+    deposit = {
+        "id": str(uuid.uuid4()),
+        "goal_id": goal_id,
+        "user_id": user["user_id"],
+        "amount": body.amount,
+        "date": body.date or date.today().isoformat(),
+        "created_at": now_utc().isoformat(),
+    }
+    await db.savings_deposits.insert_one(deposit)
+    new_current = doc.get("current_amount", 0) + body.amount
+    await db.savings_goals.update_one({"id": goal_id}, {"$set": {"current_amount": new_current}})
+    updated = await db.savings_goals.find_one({"id": goal_id}, {"_id": 0})
+    return {"goal": goal_public(updated), "deposit": {k: v for k, v in deposit.items() if k != "_id"}}
+
+
+@api_router.get("/goals/{goal_id}/deposits")
+async def list_goal_deposits(goal_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.savings_goals.find_one(
+        {"id": goal_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Goal tidak ditemukan")
+    docs = await db.savings_deposits.find(
+        {"goal_id": goal_id, "user_id": user["user_id"]}, {"_id": 0}
+    ).sort("date", -1).to_list(500)
+    return {"deposits": docs}
+
+
+# ---------------------------------------------------------------------------
 # Promo recommendations — a Premium-only perk shown as a locked card on the
 # dashboard. Content is entirely admin-curated (see /admin/promos below); the
 # app never invents or guesses at real promotions from other services.
@@ -3148,6 +3329,8 @@ async def admin_purge_user(body: AdminConfirmEmailBody, _: None = Depends(requir
     await db.obligations.delete_many({"user_id": uid})
     await db.transactions.delete_many({"user_id": uid})
     await db.budgets.delete_many({"user_id": uid})
+    await db.savings_goals.delete_many({"user_id": uid})
+    await db.savings_deposits.delete_many({"user_id": uid})
     await db.groups.update_many({"members.user_id": uid}, {"$pull": {"members": {"user_id": uid}}})
     logger.warning(f"Admin permanently purged user: {user.get('email')} ({uid})")
     return {"status": "ok"}
@@ -4958,6 +5141,10 @@ async def startup():
         await db.transactions.create_index([("user_id", 1), ("date", 1)])
         await db.transactions.create_index("id", unique=True)
         await db.budgets.create_index([("user_id", 1), ("category", 1)], unique=True)
+        await db.savings_goals.create_index("user_id")
+        await db.savings_goals.create_index("id", unique=True)
+        await db.savings_deposits.create_index("goal_id")
+        await db.savings_deposits.create_index("id", unique=True)
         await db.groups.create_index("id", unique=True)
         await db.groups.create_index("invite_code", unique=True)
         await db.groups.create_index("members.user_id")

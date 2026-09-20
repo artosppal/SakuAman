@@ -586,6 +586,141 @@ class TestSakuAman:
         assert date.fromisoformat(d["period_start"]).day == 1
 
 
+# --------------------- goals & savings ---------------------
+class TestGoals:
+    FREE_LIMIT = 3  # PLANS["free"]["max_goals_active"], see docs/DATA_MODEL.md §7
+
+    def _user(self, s):
+        email = f"test_goal_{uuid.uuid4().hex[:10]}@example.com"
+        data = register_verified(s, email, "rahasia123", "TEST Goal")
+        return data["session_token"]
+
+    def test_create_and_list(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_DanaDarurat", "target_amount": 5000000,
+                         "deadline": "2026-12-31", "kind": "goal"},
+                   headers=auth(tok))
+        assert r.status_code == 200, r.text
+        goal = r.json()["goal"]
+        assert goal["name"] == "TEST_DanaDarurat"
+        assert goal["current_amount"] == 0
+        assert goal["progress_pct"] == 0
+        assert goal["suggested_monthly_deposit"] is not None
+
+        r2 = s.get(f"{API}/goals", headers=auth(tok))
+        assert r2.status_code == 200
+        names = {g["name"] for g in r2.json()["goals"]}
+        assert "TEST_DanaDarurat" in names
+
+    def test_invalid_kind_422(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_Bad", "target_amount": 100000, "kind": "invalid"},
+                   headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_zero_target_422(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_Bad", "target_amount": 0}, headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_deposit_updates_progress(self, s):
+        tok = self._user(s)
+        goal = s.post(f"{API}/goals",
+                      json={"name": "TEST_Motor", "target_amount": 1000000, "kind": "goal"},
+                      headers=auth(tok)).json()["goal"]
+
+        r = s.post(f"{API}/goals/{goal['id']}/deposit",
+                   json={"amount": 250000, "date": "2026-03-01"}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        updated = r.json()["goal"]
+        assert updated["current_amount"] == 250000
+        assert updated["progress_pct"] == 25.0
+
+        deposits = s.get(f"{API}/goals/{goal['id']}/deposits", headers=auth(tok)).json()["deposits"]
+        assert len(deposits) == 1
+        assert deposits[0]["amount"] == 250000
+
+    def test_deposit_zero_amount_422(self, s):
+        tok = self._user(s)
+        goal = s.post(f"{API}/goals",
+                      json={"name": "TEST_Zero", "target_amount": 100000},
+                      headers=auth(tok)).json()["goal"]
+        r = s.post(f"{API}/goals/{goal['id']}/deposit", json={"amount": 0}, headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_update_and_delete(self, s):
+        tok = self._user(s)
+        goal = s.post(f"{API}/goals",
+                      json={"name": "TEST_Edit", "target_amount": 200000},
+                      headers=auth(tok)).json()["goal"]
+
+        r = s.put(f"{API}/goals/{goal['id']}",
+                  json={"name": "TEST_Edit_Renamed", "target_amount": 300000},
+                  headers=auth(tok))
+        assert r.status_code == 200, r.text
+        assert r.json()["goal"]["name"] == "TEST_Edit_Renamed"
+        assert r.json()["goal"]["target_amount"] == 300000
+
+        r2 = s.delete(f"{API}/goals/{goal['id']}", headers=auth(tok))
+        assert r2.status_code == 200
+        remaining = s.get(f"{API}/goals", headers=auth(tok)).json()["goals"]
+        assert all(g["id"] != goal["id"] for g in remaining)
+
+    def test_delete_unknown_404(self, s):
+        tok = self._user(s)
+        r = s.delete(f"{API}/goals/does-not-exist", headers=auth(tok))
+        assert r.status_code == 404
+
+    def test_annual_fund_requires_linked_obligation(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_THR", "target_amount": 3000000, "kind": "annual_fund"},
+                   headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_annual_fund_links_to_existing_obligation(self, s):
+        tok = self._user(s)
+        ob = s.post(f"{API}/obligations",
+                    json={"name": "TEST_SPP_Tahunan", "type": "tuition", "category": "education",
+                          "price": 3000000, "billing_cycle": "yearly", "next_due_date": "2026-12-01",
+                          "status": "paid", "reminders": [3, 1, 0]},
+                    headers=auth(tok)).json()["obligation"]
+
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_SPP_Fund", "target_amount": 3000000, "kind": "annual_fund",
+                         "linked_obligation_id": ob["id"], "deadline": "2026-12-01"},
+                   headers=auth(tok))
+        assert r.status_code == 200, r.text
+        assert r.json()["goal"]["linked_obligation_id"] == ob["id"]
+
+    def test_annual_fund_unknown_obligation_404(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_Bad_Link", "target_amount": 100000, "kind": "annual_fund",
+                         "linked_obligation_id": "does-not-exist"},
+                   headers=auth(tok))
+        assert r.status_code == 404
+
+    def test_freemium_limit_reached(self, s):
+        tok = self._user(s)
+        for i in range(self.FREE_LIMIT):
+            r = s.post(f"{API}/goals",
+                       json={"name": f"TEST_Filler{i}", "target_amount": 100000},
+                       headers=auth(tok))
+            assert r.status_code == 200, r.text
+
+        r = s.post(f"{API}/goals",
+                   json={"name": "TEST_OverLimit", "target_amount": 100000},
+                   headers=auth(tok))
+        assert r.status_code == 403, r.text
+        detail = r.json().get("detail")
+        assert isinstance(detail, dict)
+        assert detail.get("code") == "limit_reached"
+
+
 # --------------------- dashboard ---------------------
 class TestDashboard:
     def test_dashboard_structure(self, s, free_user):
