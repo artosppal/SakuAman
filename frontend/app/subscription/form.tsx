@@ -97,7 +97,7 @@ export default function SubscriptionForm() {
   useEffect(() => {
     api
       .listSubs("all", "all")
-      .then((res: any) => setOtherSubs(res.subscriptions || []))
+      .then((res: any) => setOtherSubs(res.obligations || []))
       .catch(() => {});
   }, []);
 
@@ -114,7 +114,7 @@ export default function SubscriptionForm() {
     (async () => {
       try {
         const res: any = await api.getSub(params.id as string);
-        const s = res.subscription;
+        const s = res.obligation;
         setName(s.name);
         setCategory(s.category);
         setPrice(String(s.price ?? ""));
@@ -176,10 +176,10 @@ export default function SubscriptionForm() {
       let sub: any;
       if (editing) {
         const res: any = await api.updateSub(params.id as string, body);
-        sub = res.subscription;
+        sub = res.obligation;
       } else {
         const res: any = await api.createSub(body);
-        sub = res.subscription;
+        sub = res.obligation;
       }
       await scheduleReminders(sub);
       toast.show(editing ? t("subscriptionForm.updated") : t("subscriptionForm.created"), "success");

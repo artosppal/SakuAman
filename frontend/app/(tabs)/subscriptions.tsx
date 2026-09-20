@@ -58,13 +58,13 @@ export default function Subscriptions() {
   const load = useCallback(async () => {
     try {
       const res: any = await api.listSubs(cat, status);
-      setSubs(res.subscriptions);
+      setSubs(res.obligations);
       // total active (unfiltered) for gating
       if (cat === "all" && status === "all") {
-        setActiveCount(res.subscriptions.length);
+        setActiveCount(res.obligations.length);
       } else {
         const all: any = await api.listSubs("all", "all");
-        setActiveCount(all.subscriptions.length);
+        setActiveCount(all.obligations.length);
       }
     } catch {
     } finally {
@@ -82,7 +82,7 @@ export default function Subscriptions() {
 
   const onAdd = () => {
     if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (user?.plan === "free" && activeCount >= 3) {
+    if (user?.plan === "free" && activeCount >= 8) {
       showUpgrade();
       return;
     }

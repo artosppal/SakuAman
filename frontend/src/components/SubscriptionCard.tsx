@@ -8,14 +8,17 @@ import { useLanguage } from "@/src/context/LanguageContext";
 export interface Subscription {
   id: string;
   name: string;
+  type?: string;
   category: string;
   price: number;
   billing_cycle: string;
   next_due_date: string;
+  end_date?: string | null;
   status: string;
   reminders?: number[];
   notes?: string;
   registered_with?: string | null;
+  period_status?: Record<string, { paid: boolean; paid_at: string; amount_paid: number }>;
   days_left?: number;
 }
 

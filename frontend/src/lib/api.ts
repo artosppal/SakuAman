@@ -128,14 +128,16 @@ export const api = {
     if (category) p.append("category", category);
     if (status) p.append("status", status);
     const q = p.toString();
-    return apiFetch(`/subscriptions${q ? `?${q}` : ""}`);
+    return apiFetch(`/obligations${q ? `?${q}` : ""}`);
   },
-  getSub: (id: string) => apiFetch(`/subscriptions/${id}`),
+  getSub: (id: string) => apiFetch(`/obligations/${id}`),
   createSub: (body: any) =>
-    apiFetch("/subscriptions", { method: "POST", body: JSON.stringify(body) }),
+    apiFetch("/obligations", { method: "POST", body: JSON.stringify(body) }),
   updateSub: (id: string, body: any) =>
-    apiFetch(`/subscriptions/${id}`, { method: "PUT", body: JSON.stringify(body) }),
-  deleteSub: (id: string) => apiFetch(`/subscriptions/${id}`, { method: "DELETE" }),
+    apiFetch(`/obligations/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteSub: (id: string) => apiFetch(`/obligations/${id}`, { method: "DELETE" }),
+  paySub: (id: string, body: { period: string; amount_paid?: number }) =>
+    apiFetch(`/obligations/${id}/pay`, { method: "PUT", body: JSON.stringify(body) }),
 
   listGroups: () => apiFetch("/groups"),
   createGroup: (name: string) =>
