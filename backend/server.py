@@ -72,7 +72,7 @@ PLANS = {
 }
 FREE_PLAN_LIMIT = PLANS["free"]["max_obligations_active"]  # dipakai di /dashboard's free_limit
 REFERRAL_REWARD_DAYS = 30  # granted to the referrer once their referee becomes Premium
-APP_URL = "https://notifin.online"  # appended to outgoing reminder/invite WhatsApp messages for easy access
+APP_URL = "https://sakuaman.vercel.app"  # appended to outgoing reminder/invite WhatsApp messages for easy access
 
 # WhatsApp via Fonnte (simulation mode while token is empty)
 FONNTE_TOKEN = os.environ.get("FONNTE_TOKEN", "")
@@ -96,7 +96,7 @@ def email_live() -> bool:
     return bool(RESEND_API_KEY.strip() and EMAIL_FROM.strip())
 
 
-# Payment via Mayar.id (membership product "Notifin Premium").
+# Payment via Mayar.id (membership product "SakuAman Premium").
 # Per Mayar's v2 docs (docs.mayar.id/api-reference-v2/membership/*), a single
 # membership tier can price several billing periods (1/3/6/12 months) — there
 # is no such thing as a separate "monthly tier" vs "yearly tier" ID. So we
@@ -334,14 +334,14 @@ def with_dev_code(resp: dict, code: str, live: bool) -> dict:
 
 def otp_email_body(code: str) -> str:
     return (
-        f"Kode verifikasi Notifin kamu: {code}\n\n"
+        f"Kode verifikasi SakuAman kamu: {code}\n\n"
         "Kode ini berlaku 10 menit. Jangan bagikan kode ini ke siapa pun."
     )
 
 
 def otp_wa_message(code: str) -> str:
     return (
-        f"Kode verifikasi Notifin kamu: *{code}*\n\n"
+        f"Kode verifikasi SakuAman kamu: *{code}*\n\n"
         "Berlaku 10 menit. Jangan bagikan kode ini ke siapa pun."
     )
 
@@ -528,7 +528,7 @@ async def register(body: RegisterBody):
             "referral_code": body.referral_code,
         },
     )
-    await send_email(body.email.lower(), "Kode verifikasi Notifin", otp_email_body(code))
+    await send_email(body.email.lower(), "Kode verifikasi SakuAman", otp_email_body(code))
     return with_dev_code({"pending": True, "email": body.email.lower()}, code, email_live())
 
 
@@ -566,7 +566,7 @@ async def register_resend(body: ResendEmailOtpBody):
     if not existing_otp:
         raise HTTPException(status_code=404, detail="Belum ada pendaftaran yang menunggu verifikasi")
     code = await create_otp("register_email", body.email.lower(), existing_otp.get("payload"))
-    await send_email(body.email.lower(), "Kode verifikasi Notifin", otp_email_body(code))
+    await send_email(body.email.lower(), "Kode verifikasi SakuAman", otp_email_body(code))
     return with_dev_code({"pending": True, "email": body.email.lower()}, code, email_live())
 
 
@@ -1195,7 +1195,7 @@ async def forgot_password(body: ForgotPasswordBody):
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if user and not user.get("deleted_at") and user.get("password_hash"):
         code = await create_otp("reset_password", email)
-        await send_email(email, "Reset password Notifin", otp_email_body(code))
+        await send_email(email, "Reset password SakuAman", otp_email_body(code))
         return with_dev_code({"pending": True, "email": email}, code, email_live())
     return {"pending": True, "email": email}
 
@@ -1734,7 +1734,7 @@ async def promo_reminder_sweep():
             if user.get("notify_channels", {}).get("whatsapp") and user.get("phone"):
                 await send_whatsapp(
                     user["phone"],
-                    f"{title}\n{body_text}\n\n_Notifin_ · {APP_URL}",
+                    f"{title}\n{body_text}\n\n_SakuAman_ · {APP_URL}",
                 )
         await db.promo_reminders.update_one({"id": r["id"]}, {"$set": {"sent": True}})
 
@@ -2318,7 +2318,7 @@ def reminder_wa_message(item_name: str, amount: float, offset: int, note: str) -
     out against plain-text chats around it."""
     headline = reminder_headline(item_name, amount, offset)
     body = note if offset <= 1 else f"{fmt_rp(amount)} — {note}"
-    return f"🔔 *{headline}*\n{body}\n\n_Notifin_ · {APP_URL}"
+    return f"🔔 *{headline}*\n{body}\n\n_SakuAman_ · {APP_URL}"
 
 
 async def claim_notif(key: str) -> bool:
@@ -2465,7 +2465,7 @@ def monthly_summary_email_body(name: Optional[str], period: str, total: float,
     ]
     if top_category:
         lines.append(f"Kategori terbesar: {CATEGORY_LABELS.get(top_category, top_category)}")
-    lines += ["", f"Cek rincian lengkapnya di {APP_URL}", "", "_Notifin_"]
+    lines += ["", f"Cek rincian lengkapnya di {APP_URL}", "", "_SakuAman_"]
     return "\n".join(lines)
 
 
@@ -2737,7 +2737,7 @@ async def send_push(recipients: List[str], data: dict) -> None:
 
 @api_router.get("/")
 async def root():
-    return {"message": "Notifin API", "status": "ok"}
+    return {"message": "SakuAman API", "status": "ok"}
 
 
 # ---------------------------------------------------------------------------
@@ -3203,12 +3203,12 @@ ONBOARDING_GOAL_LABELS = {
 def build_users_xlsx(users: List[dict]) -> bytes:
     wb = Workbook()
     ws = wb.active
-    ws.title = "Akun Notifin"
+    ws.title = "Akun SakuAman"
 
     headers = [
         "Nama", "Email", "No. WhatsApp", "Status", "Tanggal Daftar",
         "Premium Sejak", "Premium Sampai", "Jumlah Langganan", "Terakhir Aktif",
-        "Untuk Siapa", "Jumlah Langganan (Survei)", "Sumber Tahu Notifin", "Tujuan Utama",
+        "Untuk Siapa", "Jumlah Langganan (Survei)", "Sumber Tahu SakuAman", "Tujuan Utama",
     ]
     ws.append(headers)
     header_font = Font(bold=True, color="FFFFFF")
@@ -3286,7 +3286,7 @@ ADMIN_PAGE_HTML = """<!doctype html>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex, nofollow" />
-<title>Notifin Admin</title>
+<title>SakuAman Admin</title>
 <script>
   // Applied before first paint so the page never flashes the wrong theme —
   // reads the saved choice (or the OS preference on a first visit) and sets
@@ -3670,7 +3670,7 @@ ADMIN_PAGE_HTML = """<!doctype html>
 <body>
 
 <div class="card" id="login-card">
-  <h1>Notifin Admin</h1>
+  <h1>SakuAman Admin</h1>
   <p class="sub">Masuk untuk atur status Premium akun secara manual.</p>
   <input id="password" type="password" placeholder="Password admin" onkeydown="if(event.key==='Enter')login()" />
   <div class="error" id="login-error"></div>
@@ -3682,7 +3682,7 @@ ADMIN_PAGE_HTML = """<!doctype html>
     <div class="shell-header">
       <div class="shell-brand">
         <div class="shell-brand-badge">&#128276;</div>
-        <h1>Notifin Admin</h1>
+        <h1>SakuAman Admin</h1>
       </div>
       <div class="shell-header-actions">
         <button class="theme-toggle" id="theme-toggle" onclick="toggleTheme()" title="Ganti tema terang/gelap">

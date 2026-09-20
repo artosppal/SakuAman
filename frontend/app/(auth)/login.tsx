@@ -268,9 +268,9 @@ export default function Login() {
           />
           <View style={[styles.heroContent, { paddingTop: insets.top + spacing.xl }]}>
             <View style={styles.logoBadge}>
-              <MaterialCommunityIcons name="bell-ring" size={26} color={colors.brand} />
+              <MaterialCommunityIcons name="shield-check" size={26} color={colors.brand} />
             </View>
-            <Text style={styles.heroTitle}>Notifin</Text>
+            <Text style={styles.heroTitle}>SakuAman</Text>
             <Text style={styles.heroTagline}>{t("auth.heroTagline")}</Text>
           </View>
         </View>

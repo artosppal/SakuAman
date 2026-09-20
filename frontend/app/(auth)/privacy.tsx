@@ -61,7 +61,7 @@ export default function Privacy() {
           Kebijakan Privasi
         </Text>
         <Text style={{ fontFamily: font.regular, fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs }}>
-          Berlaku untuk aplikasi Notifin (notifin.online)
+          Berlaku untuk aplikasi SakuAman (sakuaman.vercel.app)
         </Text>
       </View>
       </View>
@@ -77,7 +77,7 @@ export default function Privacy() {
         }}
       >
         <P>
-          Notifin adalah aplikasi pencatat dan pengingat langganan pribadi. Kebijakan ini menjelaskan data apa
+          SakuAman adalah aplikasi pencatat dan pengingat langganan pribadi. Kebijakan ini menjelaskan data apa
           yang kami kumpulkan, untuk apa data itu digunakan, dan bagaimana kamu bisa mengontrolnya.
         </P>
 
@@ -112,7 +112,7 @@ export default function Privacy() {
         </P>
 
         <H>Kontak</H>
-        <P>Ada pertanyaan soal privasi? Hubungi kami di support@notifin.online.</P>
+        <P>Ada pertanyaan soal privasi? Hubungi kami di support@sakuaman.id.</P>
 
         <P>Kebijakan ini bisa diperbarui sewaktu-waktu; perubahan penting akan diinformasikan di dalam aplikasi.</P>
       </ScrollView>

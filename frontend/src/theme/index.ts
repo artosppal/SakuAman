@@ -1,4 +1,5 @@
-// Notifin design tokens — sourced from /app/design_guidelines.json
+// SakuAman design tokens — inherited from Notifin's /app/design_guidelines.json (still the same
+// palette for now; a full visual redesign is a separate, later decision — see docs/DATA_MODEL.md)
 // Tactile / Playful LIGHT personality.
 
 export const colors = {

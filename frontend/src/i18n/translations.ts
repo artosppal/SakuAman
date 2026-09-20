@@ -1,4 +1,4 @@
-// Notifin translations — Indonesian (default) and English.
+// SakuAman translations — Indonesian (default) and English.
 // Keys are grouped by screen/section. Use with `t("section.key")` from useLanguage().
 
 export const translations = {
@@ -20,7 +20,7 @@ export const translations = {
       freePlan: "Paket Gratis",
     },
     onboarding: {
-      step1Title: "Notifin ini buat siapa?",
+      step1Title: "SakuAman ini buat siapa?",
       step1Sub: "Biar kami bisa kasih pengalaman yang paling pas buatmu.",
       step1Personal: "Cuma buat aku sendiri",
       step1Shared: "Bareng keluarga atau teman",
@@ -33,7 +33,7 @@ export const translations = {
       step2Range3: "7-10 langganan",
       step2Range4: "10+, udah ribet dihitung",
 
-      step3Title: "Dari mana kamu tahu Notifin?",
+      step3Title: "Dari mana kamu tahu SakuAman?",
       step3Sub: "Opsional, tapi bantu kami banget.",
       step3Instagram: "Instagram",
       step3Tiktok: "TikTok",
@@ -43,7 +43,7 @@ export const translations = {
       step3AppStore: "App Store",
       step3Other: "Lainnya",
 
-      step4Title: "Apa yang paling kamu harapkan dari Notifin?",
+      step4Title: "Apa yang paling kamu harapkan dari SakuAman?",
       step4Sub: "Opsional — biar kami tahu apa yang perlu kami perbaiki dulu.",
       step4AvoidTrials: "Jangan sampai lupa cancel trial",
       step4TrackSpending: "Pantau total pengeluaran bulanan",
@@ -54,17 +54,17 @@ export const translations = {
       continue: "Lanjut",
       back: "Kembali",
 
-      tourTitle: "Cara Pakai Notifin",
+      tourTitle: "Cara Pakai SakuAman",
       tour1Title: "Tambahkan langganan pertamamu",
       tour1Body: "Ketuk tombol + di halaman Langganan, catat nama, harga, dan tanggal jatuh temponya.",
-      tour2Title: "Biar Notifin yang ingetin",
+      tour2Title: "Biar SakuAman yang ingetin",
       tour2Body: "Kamu bakal dapat notifikasi H-3, H-1, dan di hari-H sebelum tagihan datang.",
       tour3Title: "Pantau semua di Dashboard",
       tour3Body: "Lihat total pengeluaran bulan ini, proyeksi ke depan, dan langganan mana yang jarang dipakai.",
       tour4Title: "Ajak keluarga atau teman patungan",
       tour4Body: "Buat grup, bagi tagihan secara adil, dan pantau siapa yang belum bayar.",
       tourSkip: "Lewati Tur",
-      tourStart: "Mulai Pakai Notifin",
+      tourStart: "Mulai Pakai SakuAman",
     },
     auth: {
       heroTagline: "Biar gak ada lagi langganan yang kelewat atau lupa di-cancel.",
@@ -136,7 +136,7 @@ export const translations = {
       you: "kamu",
       premium: "Premium",
       totalLabel: "Pengeluaran bulan ini",
-      shareMessage: "Bulan ini aku ngeluarin {{total}} buat {{count}} langganan digital 📊 Pantau langgananmu juga di Notifin → https://notifin.online",
+      shareMessage: "Bulan ini aku ngeluarin {{total}} buat {{count}} langganan digital 📊 Pantau langgananmu juga di SakuAman → https://sakuaman.vercel.app",
       shareCopied: "Disalin — tempel buat share ke mana pun",
       shareFailed: "Gagal menyalin, coba lagi",
       projection: "Proyeksi bulan depan {{value}}",
@@ -265,7 +265,7 @@ export const translations = {
       referralAction: "Program Referral",
       downgradeAction: "Berhenti Langganan",
       logoutAction: "Keluar",
-      version: "Notifin v1.0 · Fase 3",
+      version: "SakuAman v1.0",
       phoneModalTitle: "Nomor WhatsApp",
       phoneModalSub: "Dipakai untuk reminder WhatsApp (Premium). Kosongkan untuk menghapus.",
       phonePlaceholder: "08123456789",
@@ -278,7 +278,7 @@ export const translations = {
       budgetSection: "Anggaran",
       limitRowTitle: "Limit pengeluaran bulanan",
       limitNotSet: "Belum diatur — tap untuk isi",
-      limitUnsetCaption: "⚠️ Mohon segera diisi supaya Notifin bisa mengingatkan kamu kalau pengeluaran mendekati limit.",
+      limitUnsetCaption: "⚠️ Mohon segera diisi supaya SakuAman bisa mengingatkan kamu kalau pengeluaran mendekati limit.",
       limitModalTitle: "Limit Pengeluaran Bulanan",
       limitModalSub:
         "Kartu total pengeluaran akan berubah warna kalau mendekati atau melewati limit ini. Kosongkan untuk menghapus.",
@@ -302,7 +302,7 @@ export const translations = {
       groupDeleted: "Grup dihapus",
       leftGroup: "Kamu keluar dari grup",
       errGeneric: "Gagal, coba lagi",
-      shareMessage: 'Yuk gabung grup "{{name}}" di Notifin buat patungan langganan! Pakai kode: {{code}}\n\nBuka di: https://notifin.online',
+      shareMessage: 'Yuk gabung grup "{{name}}" di SakuAman buat patungan langganan! Pakai kode: {{code}}\n\nBuka di: https://sakuaman.vercel.app',
       inviteLabel: "Kode undangan",
       shareButton: "Bagikan",
       totalLabel: "Total grup",
@@ -450,7 +450,7 @@ export const translations = {
       toggleYearly: "Tahunan",
       emptyTitle: "Grafik ini baru mulai dicatat",
       emptySubtitle:
-        "Setiap kali kamu buka Notifin, pengeluaran bulan ini otomatis tersimpan sebagai data asli — bukan tebakan. Balik lagi bulan depan buat lihat perbandingannya!",
+        "Setiap kali kamu buka SakuAman, pengeluaran bulan ini otomatis tersimpan sebagai data asli — bukan tebakan. Balik lagi bulan depan buat lihat perbandingannya!",
       singlePointNote: "Baru {{count}} bulan tercatat — perbandingan akan makin jelas seiring waktu.",
       singlePointNoteYearly:
         "Baru {{count}} tahun tercatat — perbandingan akan makin jelas seiring waktu.",
@@ -515,7 +515,7 @@ export const translations = {
       successToast: "Selamat! Kamu sekarang Premium 🎉",
       errToast: "Gagal upgrade, coba lagi",
       welcomeBack: "Selamat datang kembali 👋",
-      whatsNewHeader: "Ada yang baru di Notifin",
+      whatsNewHeader: "Ada yang baru di SakuAman",
       whatsNewReturning: "Ini yang baru sejak terakhir kamu Premium",
 
       phoneNeededTitle: "Verifikasi WhatsApp dulu",
@@ -575,7 +575,7 @@ export const translations = {
       heroTitleHighlight: "Langganan",
       heroTitlePart2: "Mu di Satu Tempat",
       heroSubtitle:
-        "Notifin ingetin kamu sebelum trial gratis berubah jadi tagihan, dan bantu lacak semua pengeluaran langganan bulananmu.",
+        "SakuAman ingetin kamu sebelum trial gratis berubah jadi tagihan, dan bantu lacak semua pengeluaran langganan bulananmu.",
       heroCtaPrimary: "Daftar Gratis",
       heroCtaSecondary: "Sudah Punya Akun? Masuk",
       heroTrust: "Gratis untuk hingga 8 langganan · Tanpa kartu kredit",
@@ -609,7 +609,7 @@ export const translations = {
       how1Title: "Tambahkan Langganan",
       how1Body: "Catat semua langganan aktifmu beserta harga dan tanggal jatuh temponya.",
       how2Title: "Atur Pengingat",
-      how2Body: "Notifin otomatis ingetin lewat notifikasi — dan WhatsApp untuk pengguna Premium.",
+      how2Body: "SakuAman otomatis ingetin lewat notifikasi — dan WhatsApp untuk pengguna Premium.",
       how3Title: "Pantau & Hemat",
       how3Body: "Lihat total pengeluaran bulanan dan langganan mana yang jarang kamu pakai.",
 
@@ -724,7 +724,7 @@ export const translations = {
       statusCompleted: "Berhasil",
       statusUnavailable: "Tidak tersedia",
       loadError: "Gagal memuat data referral",
-      shareMessage: "Yuk coba Notifin buat pantau langganan digitalmu! Daftar pakai kode referralku {{code}} → {{link}}",
+      shareMessage: "Yuk coba SakuAman buat pantau langganan digitalmu! Daftar pakai kode referralku {{code}} → {{link}}",
     },
   },
   en: {
@@ -745,7 +745,7 @@ export const translations = {
       freePlan: "Free Plan",
     },
     onboarding: {
-      step1Title: "Who's Notifin for?",
+      step1Title: "Who's SakuAman for?",
       step1Sub: "So we can tailor the experience for you.",
       step1Personal: "Just for myself",
       step1Shared: "With family or friends",
@@ -758,7 +758,7 @@ export const translations = {
       step2Range3: "7-10 subscriptions",
       step2Range4: "10+, I've lost count",
 
-      step3Title: "How did you hear about Notifin?",
+      step3Title: "How did you hear about SakuAman?",
       step3Sub: "Optional, but it really helps us.",
       step3Instagram: "Instagram",
       step3Tiktok: "TikTok",
@@ -768,7 +768,7 @@ export const translations = {
       step3AppStore: "App Store",
       step3Other: "Other",
 
-      step4Title: "What do you hope to get out of Notifin?",
+      step4Title: "What do you hope to get out of SakuAman?",
       step4Sub: "Optional — helps us know what to improve first.",
       step4AvoidTrials: "Never forget to cancel a trial",
       step4TrackSpending: "Track my total monthly spending",
@@ -779,17 +779,17 @@ export const translations = {
       continue: "Continue",
       back: "Back",
 
-      tourTitle: "How to Use Notifin",
+      tourTitle: "How to Use SakuAman",
       tour1Title: "Add your first subscription",
       tour1Body: "Tap the + button on the Subscriptions tab, and log its name, price, and due date.",
-      tour2Title: "Let Notifin remind you",
+      tour2Title: "Let SakuAman remind you",
       tour2Body: "You'll get notified 3 days before, 1 day before, and on the due date itself.",
       tour3Title: "Track everything on the Dashboard",
       tour3Body: "See this month's total spending, next month's projection, and which subscriptions you barely use.",
       tour4Title: "Invite family or friends to split costs",
       tour4Body: "Create a group, split the bill fairly, and track who still owes their share.",
       tourSkip: "Skip Tour",
-      tourStart: "Start Using Notifin",
+      tourStart: "Start Using SakuAman",
     },
     auth: {
       heroTagline: "So you never miss or forget to cancel a subscription again.",
@@ -861,7 +861,7 @@ export const translations = {
       you: "there",
       premium: "Premium",
       totalLabel: "Spending this month",
-      shareMessage: "I spent {{total}} on {{count}} digital subscriptions this month 📊 Track yours too with Notifin → https://notifin.online",
+      shareMessage: "I spent {{total}} on {{count}} digital subscriptions this month 📊 Track yours too with SakuAman → https://sakuaman.vercel.app",
       shareCopied: "Copied — paste it anywhere to share",
       shareFailed: "Couldn't copy, try again",
       projection: "Next month's projection {{value}}",
@@ -990,7 +990,7 @@ export const translations = {
       referralAction: "Referral Program",
       downgradeAction: "Cancel Subscription",
       logoutAction: "Log Out",
-      version: "Notifin v1.0 · Phase 3",
+      version: "SakuAman v1.0",
       phoneModalTitle: "WhatsApp Number",
       phoneModalSub: "Used for WhatsApp reminders (Premium). Leave empty to remove.",
       phonePlaceholder: "08123456789",
@@ -1003,7 +1003,7 @@ export const translations = {
       budgetSection: "Budget",
       limitRowTitle: "Monthly spending limit",
       limitNotSet: "Not set — tap to add",
-      limitUnsetCaption: "⚠️ Please set it soon so Notifin can warn you as spending nears the limit.",
+      limitUnsetCaption: "⚠️ Please set it soon so SakuAman can warn you as spending nears the limit.",
       limitModalTitle: "Monthly Spending Limit",
       limitModalSub:
         "The total spend card changes color as you approach or pass this limit. Leave empty to remove.",
@@ -1027,7 +1027,7 @@ export const translations = {
       groupDeleted: "Group deleted",
       leftGroup: "You left the group",
       errGeneric: "Something went wrong, try again",
-      shareMessage: 'Join "{{name}}" on Notifin to split subscriptions! Use code: {{code}}\n\nOpen at: https://notifin.online',
+      shareMessage: 'Join "{{name}}" on SakuAman to split subscriptions! Use code: {{code}}\n\nOpen at: https://sakuaman.vercel.app',
       inviteLabel: "Invite code",
       shareButton: "Share",
       totalLabel: "Group total",
@@ -1175,7 +1175,7 @@ export const translations = {
       toggleYearly: "Yearly",
       emptyTitle: "This chart just started tracking",
       emptySubtitle:
-        "Every time you open Notifin, this month's spending is saved as real data — never guessed. Come back next month to see the comparison!",
+        "Every time you open SakuAman, this month's spending is saved as real data — never guessed. Come back next month to see the comparison!",
       singlePointNote: "Only {{count}} month tracked so far — comparisons get clearer over time.",
       singlePointNoteYearly: "Only {{count}} year tracked so far — comparisons get clearer over time.",
       trendUp: "Up {{pct}}% from the previous period",
@@ -1239,7 +1239,7 @@ export const translations = {
       successToast: "Congrats! You're now Premium 🎉",
       errToast: "Upgrade failed, try again",
       welcomeBack: "Welcome back 👋",
-      whatsNewHeader: "What's new in Notifin",
+      whatsNewHeader: "What's new in SakuAman",
       whatsNewReturning: "Here's what's new since you were last Premium",
 
       phoneNeededTitle: "Verify WhatsApp first",
@@ -1299,7 +1299,7 @@ export const translations = {
       heroTitleHighlight: "Subscriptions",
       heroTitlePart2: " in One Place",
       heroSubtitle:
-        "Notifin reminds you before a free trial turns into a bill, and helps you track all your monthly subscription spending.",
+        "SakuAman reminds you before a free trial turns into a bill, and helps you track all your monthly subscription spending.",
       heroCtaPrimary: "Sign Up Free",
       heroCtaSecondary: "Already Have an Account? Log In",
       heroTrust: "Free for up to 8 subscriptions · No credit card needed",
@@ -1333,7 +1333,7 @@ export const translations = {
       how1Title: "Add Your Subscriptions",
       how1Body: "Log all your active subscriptions with their price and due date.",
       how2Title: "Set Up Reminders",
-      how2Body: "Notifin automatically reminds you via push — and WhatsApp for Premium users.",
+      how2Body: "SakuAman automatically reminds you via push — and WhatsApp for Premium users.",
       how3Title: "Track & Save",
       how3Body: "See your monthly spending and which subscriptions you barely use.",
 
@@ -1448,7 +1448,7 @@ export const translations = {
       statusCompleted: "Completed",
       statusUnavailable: "Unavailable",
       loadError: "Couldn't load referral data",
-      shareMessage: "Check out Notifin for tracking your digital subscriptions! Sign up with my referral code {{code}} → {{link}}",
+      shareMessage: "Check out SakuAman for tracking your digital subscriptions! Sign up with my referral code {{code}} → {{link}}",
     },
   },
 } as const;

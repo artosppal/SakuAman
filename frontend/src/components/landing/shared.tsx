@@ -14,9 +14,9 @@ export function Nav({ isWide, language, onToggleLanguage, onNavPress, onLogin, o
       <View style={sharedStyles.navInner}>
         <View style={sharedStyles.brandRow}>
           <View style={sharedStyles.brandMark}>
-            <MaterialCommunityIcons name="bell-ring" size={20} color={colors.onBrandPrimary} />
+            <MaterialCommunityIcons name="shield-check" size={20} color={colors.onBrandPrimary} />
           </View>
-          <Text style={sharedStyles.brandName}>Notifin</Text>
+          <Text style={sharedStyles.brandName}>SakuAman</Text>
         </View>
 
         {isWide && (
@@ -67,9 +67,9 @@ export function Footer({ isTablet, router, t }: any) {
         <View style={{ maxWidth: 320 }}>
           <View style={sharedStyles.brandRow}>
             <View style={sharedStyles.brandMark}>
-              <MaterialCommunityIcons name="bell-ring" size={18} color={colors.onBrandPrimary} />
+              <MaterialCommunityIcons name="shield-check" size={18} color={colors.onBrandPrimary} />
             </View>
-            <Text style={sharedStyles.brandName}>Notifin</Text>
+            <Text style={sharedStyles.brandName}>SakuAman</Text>
           </View>
           <Text style={sharedStyles.footerTagline}>{t("landing.footerTagline")}</Text>
         </View>
@@ -92,11 +92,11 @@ export function Footer({ isTablet, router, t }: any) {
           </Pressable>
         </View>
       </View>
-      <Pressable onPress={() => Linking.openURL("mailto:support@notifin.online")}>
-        <Text style={sharedStyles.footerSupport}>{t("landing.footerSupport")} support@notifin.online</Text>
+      <Pressable onPress={() => Linking.openURL("mailto:support@sakuaman.id")}>
+        <Text style={sharedStyles.footerSupport}>{t("landing.footerSupport")} support@sakuaman.id</Text>
       </Pressable>
       <Text style={sharedStyles.footerCopyright}>
-        © {new Date().getFullYear()} Notifin. {t("landing.footerRights")}
+        © {new Date().getFullYear()} SakuAman. {t("landing.footerRights")}
       </Text>
     </View>
   );

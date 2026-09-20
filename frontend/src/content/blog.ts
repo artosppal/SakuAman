@@ -1,7 +1,7 @@
 // Blog content, bundled at build time (no CMS yet — see memory/PRD.md).
 // Body paragraphs starting with "## " render as subheadings; everything
 // else is a plain paragraph. Keep entries practical and generic — no
-// fabricated statistics or claims about Notifin's own user base.
+// fabricated statistics or claims about SakuAman's own user base.
 export interface BlogPost {
   slug: string;
   publishedAt: string; // ISO date, YYYY-MM-DD

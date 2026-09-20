@@ -61,7 +61,7 @@ export default function Terms() {
           Syarat & Ketentuan
         </Text>
         <Text style={{ fontFamily: font.regular, fontSize: fontSize.sm, color: colors.muted, marginTop: spacing.xs }}>
-          Berlaku untuk aplikasi Notifin (notifin.online)
+          Berlaku untuk aplikasi SakuAman (sakuaman.vercel.app)
         </Text>
       </View>
       </View>
@@ -77,13 +77,13 @@ export default function Terms() {
         }}
       >
         <P>
-          Dengan membuat akun dan menggunakan Notifin, kamu menyetujui syarat dan ketentuan di bawah ini.
+          Dengan membuat akun dan menggunakan SakuAman, kamu menyetujui syarat dan ketentuan di bawah ini.
         </P>
 
         <H>Layanan</H>
         <P>
-          Notifin membantu kamu mencatat langganan berbayar dan mengingatkan tanggal jatuh tempo lewat
-          notifikasi push dan/atau WhatsApp. Notifin bukan penyedia layanan langganan itu sendiri, hanya
+          SakuAman membantu kamu mencatat langganan berbayar dan mengingatkan tanggal jatuh tempo lewat
+          notifikasi push dan/atau WhatsApp. SakuAman bukan penyedia layanan langganan itu sendiri, hanya
           alat bantu pencatatan dan pengingat.
         </P>
 
@@ -102,14 +102,14 @@ export default function Terms() {
 
         <H>Akurasi pengingat</H>
         <P>
-          Pengingat dikirim berdasarkan tanggal yang kamu masukkan sendiri. Notifin tidak bertanggung jawab
+          Pengingat dikirim berdasarkan tanggal yang kamu masukkan sendiri. SakuAman tidak bertanggung jawab
           atas keterlambatan atau kegagalan pengiriman notifikasi akibat gangguan pihak ketiga (mis. jaringan,
           penyedia WhatsApp, atau sistem notifikasi perangkat).
         </P>
 
         <H>Penggunaan yang wajar</H>
         <P>
-          Jangan gunakan Notifin untuk mengirim pesan yang melanggar hukum, spam, atau merugikan pihak lain.
+          Jangan gunakan SakuAman untuk mengirim pesan yang melanggar hukum, spam, atau merugikan pihak lain.
           Kami berhak menonaktifkan akun yang menyalahgunakan layanan.
         </P>
 
@@ -120,7 +120,7 @@ export default function Terms() {
         </P>
 
         <H>Kontak</H>
-        <P>Pertanyaan seputar syarat & ketentuan ini bisa dikirim ke support@notifin.online.</P>
+        <P>Pertanyaan seputar syarat & ketentuan ini bisa dikirim ke support@sakuaman.id.</P>
       </ScrollView>
     </View>
   );

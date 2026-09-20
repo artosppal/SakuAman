@@ -76,9 +76,9 @@ export function Sidebar() {
         {!collapsed && (
           <View style={styles.brandRow}>
             <View style={styles.brandMark}>
-              <MaterialCommunityIcons name="bell-ring" size={18} color={colors.onBrandPrimary} />
+              <MaterialCommunityIcons name="shield-check" size={18} color={colors.onBrandPrimary} />
             </View>
-            <Text style={styles.brandName}>Notifin</Text>
+            <Text style={styles.brandName}>SakuAman</Text>
           </View>
         )}
         <Pressable

@@ -25,9 +25,9 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <View style={styles.logo}>
-        <MaterialCommunityIcons name="bell-ring" size={40} color={colors.onBrandPrimary} />
+        <MaterialCommunityIcons name="shield-check" size={40} color={colors.onBrandPrimary} />
       </View>
-      <Text style={styles.name}>Notifin</Text>
+      <Text style={styles.name}>SakuAman</Text>
       <ActivityIndicator color={colors.brand} style={{ marginTop: spacing.lg }} />
     </View>
   );
