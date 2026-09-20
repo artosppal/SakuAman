@@ -1,76 +1,96 @@
-# Notifin — Product Requirements (PRD)
+# SakuAman — Product Requirements (PRD)
 
 ## Original Problem Statement
-Notifin — aplikasi pelacak langganan (subscription tracker) untuk pasar Indonesia. Membantu orang tidak lupa cancel trial gratis & tidak boncos karena langganan menumpuk. Freemium (gratis: max 3 langganan + push; premium: unlimited + WhatsApp + Family Sharing). Dibangun bertahap FASE 1-4. Akan di-build jadi APK Android.
+SakuAman — aplikasi pengelolaan keuangan rumah tangga (Web App, berbahasa Indonesia): langganan, tagihan, iuran, arisan, tabungan, dan bayaran anak — supaya pengguna tidak telat bayar, uang tidak keburu habis di akhir bulan, bisa menabung, bisa memprediksi kondisi keuangan ke depan, dan bisa membuat goal keuangan. Model bisnis: freemium.
 
-Tagline: "Biar gak ada lagi langganan yang kelewat atau lupa di-cancel."
+Beda dengan Notifin (aplikasi asal basis kode repo ini — lihat "Asal-usul basis kode" di bawah): Notifin cuma fokus pengingat langganan/trial. SakuAman mencakup seluruh keuangan rumah tangga, dengan reminder WhatsApp sebagai salah satu saluran utama.
 
-## Architecture
-- Frontend: Expo (SDK 54) + expo-router, React Native. Plus Jakarta Sans (static instances generated from variable font via fonttools). MaterialCommunityIcons.
-- Backend: FastAPI + MongoDB (motor). JWT (bcrypt) auth + Google OAuth (direct PKCE). httpx for Expo Push Notification Service.
-- Design: "Tactile / Playful LIGHT", brand green #059669. Bottom tabs (Beranda / Langganan / Akun). Glass headers + tab bar.
+## Core v1 — arah pengembangan (belum semua diimplementasi per 2026-09-20)
+1. **Tagihan dan langganan** — semua kewajiban rutin (langganan, listrik/air/internet, cicilan, iuran, SPP/bayaran anak) dengan pengulangan, status lunas per periode, reminder bertingkat (H-3, H-1, hari-H) lewat WhatsApp.
+2. **Anggaran dan catat transaksi** — pemasukan/pengeluaran dicatat cepat, anggaran bulanan model amplop per kategori.
+3. **"Saku Aman"** (nama app diambil dari fitur ini) — sisa uang yang aman dipakai hari ini dan sampai gajian, setelah dikurangi tagihan yang jatuh tempo, plus peringatan "uang diperkirakan habis tanggal X" (proyeksi sederhana, tanpa AI).
+4. **Siklus gajian** — bulan keuangan mengikuti tanggal gajian pengguna, bukan tanggal 1-31 kalender.
+5. **Tabungan dan goal** — target, tenggat, progress, saran setoran per bulan; dana tagihan tahunan (THR, SPP tahunan, PBB, asuransi) dipecah jadi tabungan bulanan.
+6. **Arisan** — modul opsional di belakang feature flag, nonaktif secara default.
 
-## User Personas
-- Anak muda / dewasa muda Indonesia melek digital dengan banyak langganan digital.
-- Keluarga/teman kecil yang berbagi langganan (Fase 2).
+Freemium: reminder WhatsApp gratis dengan kuota bulanan, sisanya premium. Referral program dan pembatasan toggle WhatsApp dari basis kode (Notifin) tetap dipakai apa adanya.
 
-## Core Requirements (static)
-- Auth (email/password + Google)
-- CRUD langganan + filter kategori/status
-- Dashboard (total bulan ini, proyeksi, jatuh tempo 7 hari, chart per kategori)
-- Freemium gating (max 3, upgrade modal)
-- Reminder H-3/H-1/H-0
+## Asal-usul basis kode
+Kode SakuAman berawal dari **Notifin** (subscription tracker — di-scaffold di Emergent.sh, dilanjutkan via Claude Code; lihat `PROMPT.md` untuk proses replikasinya). Repo ini (`github.com/artosppal/SakuAman`) punya riwayat git **bersih** (initial import 2026-09-20) — sengaja dipisah total dari `github.com/artosppal/Emergent-App`, yang masih deploy ke `notifin.online` dan tidak terpengaruh apa pun yang terjadi di sini.
 
-## Implemented (2026-06)
-### FASE 1 — MVP ✅ (done 2026-06)
-- JWT email/password auth (register/login) + Emergent Google OAuth. AuthContext + root gate.
-- Subscription CRUD (name, category, price, cycle, next_due_date, status trial/paid, reminders, notes). Soft delete.
-- Filter by category (horizontal chip scroller) + status.
-- Dashboard: total monthly (normalized), projection, upcoming (7 days), spend-by-category bar chart. Empty states.
-- Freemium gating: backend enforces 3-active limit (403 limit_reached); frontend UpgradeSheet (@gorhom/bottom-sheet). Mock upgrade/downgrade endpoints.
-- Push: /api/register-push + send_push relay (Emergent managed). Local scheduled reminders H-3/H-1/H-0 per subscription (expo-notifications). Tap handlers + Android channel in _layout.
-- Notification channel settings in Akun (push always; WhatsApp locked behind premium).
-- Toast system (no Alerts). Keyboard handling via react-native-keyboard-controller.
+**Diwariskan dari Notifin dan tetap relevan:**
+- Auth lengkap: email/password + Google OAuth (PKCE) + WhatsApp OTP, termasuk change/forgot/reset password.
+- Model freemium + integrasi pembayaran Mayar.id.
+- Infra reminder WhatsApp (Fonnte) — akan jadi saluran utama SakuAman.
+- Sistem grup (create/join/split tagihan) — akan diarahkan ulang jadi "berbagi rumah tangga" (suami-istri/keluarga), bukan cuma family-plan langganan.
+- Program referral, admin panel, scheduler (reminder sweep tiap 30 menit), email OTP (Resend), monthly summary email.
 
-### FASE 2 — Family/Team Sharing ✅ (done 2026-06)
-- Groups: create (premium-only, 403 premium_required), join via 6-char invite code (case-insensitive), leave (owner blocked), delete (owner-only, cascades subs).
-- Shared subs (owner/koordinator-only CRUD): equal or custom split per member. Payments keyed per next_due_date period; due dates auto-advance past today → paid statuses reset automatically each period.
-- Pay status: member toggles self, owner toggles anyone. Coordinator "unpaid members" overview in group detail.
-- UI: "Grup" tab (list + create/join modals), /group/[id] detail (invite code + Share, members, split rows w/ tap-to-toggle paid), /group/add-sub form.
-- Service presets (src/constants/presets.ts, 16 popular ID services w/ common prices): quick-pick chips in personal sub form + group sub form.
-- "Sorotan boros" on dashboard: most_expensive (monthly-normalized) + ending_trials (trials due 0–14 days).
-- Backend tests: /app/backend/tests/test_notifin_groups.py (run with `pytest -n 0`, serial).
+**Masih branding/konten Notifin, belum dikerjakan (next phase):**
+- Nama app, warna brand, logo, landing page copy, 4 artikel blog — semua masih bahas subscription tracker, bukan keuangan rumah tangga.
+- Model data `subscriptions` perlu diperluas jadi konsep tagihan/kewajiban yang lebih umum (bukan cuma langganan digital).
+- Dashboard perlu redesain total ke arah "Saku Aman" (sisa uang aman + proyeksi), bukan cuma total pengeluaran langganan.
 
-### FASE 3 — WhatsApp + Nudge + Riwayat ✅ (done 2026-06)
-- WhatsApp via Fonnte (playbook): send_whatsapp() with SIMULATION MODE while FONNTE_TOKEN (backend/.env) empty — messages recorded in db.wa_outbox status=simulated. To go live: fill FONNTE_TOKEN + restart backend.
-- Phone: PUT /api/auth/phone (normalizes 08xx/+62 → 62-digits, 422 invalid, empty clears). public_user has phone + wa_live. Akun screen: phone row + modal, "Mode simulasi" banner when WA on & !wa_live.
-- Scheduler: asyncio loop (30 min) reminder_sweep(): personal subs → WA (premium + wa channel + phone, offsets from sub.reminders); group subs → push relay to unpaid members + WA to eligible members at H-3/H-1/H-0. Idempotent via db.notif_log unique keys.
-- Nudge: POST /groups/{gid}/subscriptions/{sid}/nudge — owner-only, unpaid target, 1x/day (429), push + WA. UI "Ingatkan" pill on unpaid split rows.
-- Riwayat: GET /groups/{gid}/history — up to 12 past periods (>= created_at) per sub, paid/unpaid splits. UI /group/history screen.
-- Tests: /app/backend/tests/test_notifin_fase3.py (15) + groups suite; run `pytest -n 0`.
+## Architecture (warisan, masih akurat)
+- Frontend: Expo (SDK 54) + expo-router, React Native. Plus Jakarta Sans (static instances via fonttools). MaterialCommunityIcons.
+- Backend: FastAPI single-file (`backend/server.py`) + MongoDB (motor, async). JWT (bcrypt) session auth + Google OAuth (direct PKCE).
+- Design saat ini: masih "Tactile / Playful LIGHT" brand green #059669 warisan Notifin — akan di-rebrand di fase berikutnya.
 
-### Continuing via Claude Code (2026-09) — no longer Emergent's builder
-- Payment gateway ✅ — Mayar.id (Membership API v2), not Midtrans/Xendit as the FASE 4 line below still says; ignore that mention. `/auth/upgrade` starts a real checkout, `/webhooks/mayar` is the only place `plan` actually flips.
-- Onboarding survey ✅ — 4-question survey + tour, `POST /api/onboarding`.
-- Pricing page ✅ — standalone `/pricing` (`frontend/app/pricing.tsx`), reachable logged-in or out. Logged-out: full marketing chrome + an 8-row feature comparison table + FAQ. Logged-in: lightweight header, plan cards reflect the visitor's actual plan (inert pill on their current plan, Premium CTA opens the real upgrade sheet instead of registration). Linked from Account ("Bandingkan semua fitur paket"). `Nav`/`Footer`/`SectionHeading` were pulled out of `LandingPage.tsx` into `src/components/landing/shared.tsx` so this page could reuse them.
-- Change/set + forgot/reset password ✅ — `PUT /auth/password`, `POST /auth/forgot-password`, `POST /auth/reset-password` in `server.py`, reusing the existing email-OTP infra. "Lupa password?" link on login. Account gets a "Ganti/Buat Password" row. Found+fixed a real bug along the way: `make_session_token()` only encoded user_id + second-precision iat/exp, so two sessions for the same user inside one wall-clock second collided on `user_sessions`' unique index — fixed with a random `jti` claim.
-- Ringkasan pengeluaran bulanan via email ✅ — `monthly_summary_sweep()` in the scheduler loop, Premium-only, idempotent via `users.last_summary_month`. `POST /test/simulate-monthly-summary` for testing without waiting a month.
-- Social share ✅ — share icon on the dashboard's total-spend card (`Share.share()` native, Web Share API → clipboard fallback on web).
-- Referral program ✅ — every account gets a unique `referral_code`; referrer gets 30 days free Premium when their referee becomes Premium (not at signup — see `complete_referral_if_any()`, hooked into the Mayar upgrade path). `GET /referral/me`, `/referral` screen (code + copy/share + history), referral code field on both register forms (prefillable via `?ref=` query param).
-- Trust badges + payment transparency ✅ — no fabricated testimonials (none exist yet); landing TrustBar + a PaymentTrust row (QRIS/e-wallet/bank/card icons + Mayar.id note) on every Pricing card instead.
-- Blog + FAQ + real sitemap/robots ✅ — `/blog` (index + `[slug]`, content in `src/content/blog.ts`, 4 articles, id+en, no CMS yet) and standalone `/faq` (was landing-page-section-only before). `public/sitemap.xml` lists every public page; `public/robots.txt` now `Disallow`s the private/app-only paths that expo-router's static web export makes URL-reachable regardless of login state.
-- Support contact ✅ — swapped the personal `artosppal@gmail.com` (privacy/terms pages) for `support@notifin.online`; added to the shared Footer alongside /pricing, /faq, /blog links.
-- Also found+fixed: `pytest.ini`'s `--dist loadscope` silently ignored the `xdist_group` marks meant to pin `test_notifin_groups.py`/`test_notifin_fase3.py`'s cross-class shared state to one worker — switched to `--dist loadgroup`. Same bug existed latently in `test_notifin_backend.py` too (no mark at all, just hadn't been hit) — added the mark there once adding new test classes finally triggered it.
+## Deployment (Fase 4 — selesai 2026-09-20)
+- **Backend**: Railway project `sakuaman-backend` → `https://sakuaman-backend-production.up.railway.app`. Deploy manual/CLI-only (`railway up` dari folder `backend/`) — **sengaja TIDAK** auto-deploy dari GitHub push (beda dari Vercel di bawah).
+- **Frontend**: Vercel project `notifin/sakuaman` → `https://sakuaman.vercel.app`. Auto-connected ke GitHub `artosppal/SakuAman` saat `vercel link` — **push ke `main` = otomatis deploy production**. Kalau mau matikan: Vercel dashboard → Project Settings → Git → Disconnect.
+- **Database**: MongoDB Atlas cluster yang sama dengan dev lokal (Cluster0/Project 0), database `sakuaman_prod` — terisolasi dari `notifin_dev` dan `sakuaman_dev` lokal lewat nama database (bukan cluster terpisah).
+- Env var production (Railway) baru semua, beda dari lokal: `MONGO_URL` (DB_NAME=sakuaman_prod), `JWT_SECRET`, `ADMIN_PASSWORD`. Integrasi lain (Fonnte WA, Resend email, Mayar) masih kosong → mode simulasi; isi kalau mau live.
+- `backend/Procfile` **wajib ada** — Railway's Nixpacks default ke `main:app`, bukan `server:app`, tanpa file ini deploy crash-loop.
+- `frontend/package.json` butuh script `"build": "expo export -p web"` + `frontend/vercel.json` butuh `"outputDirectory": "dist"` — keduanya tidak ada bawaan dari template Expo, wajib ditambah manual sebelum deploy pertama.
+- Verifikasi end-to-end (register → OTP → onboarding redirect) sudah dijalankan langsung di URL production di atas, bukan cuma lokal.
 
-## Backlog (next phases)
-- No open backlog items from the 2026-09 Claude Code continuation pass — all were completed (see above). Next priorities are the user's call.
-- Optional cleanup: @app.on_event → lifespan; shadow* → boxShadow.
+## Fitur yang sudah ada di basis kode (siap dipakai/diarahkan ulang untuk SakuAman)
+### Auth & akun
+- JWT email/password (register 2-langkah via OTP email) + Google OAuth PKCE + WhatsApp OTP register/login.
+- Change/set password, forgot/reset password (OTP email), semua reuse infra OTP yang sama.
+- Onboarding survey 4 pertanyaan + tour.
+
+### Langganan/tagihan (akan diperluas)
+- CRUD dengan kategori, siklus (mingguan/bulanan/tahunan), status trial/paid, reminder multi-offset per item, soft delete.
+- Freemium gating: max 3 aktif di Free (403 `limit_reached`).
+- Dashboard: total bulan ini (normalized), proyeksi, jatuh tempo 7 hari, breakdown kategori, "sorotan boros".
+
+### Grup (akan jadi "berbagi rumah tangga")
+- Create (premium-only)/join (semua plan, kode 6 karakter)/leave/delete.
+- Split equal/custom per anggota, status lunas per periode, nudge (1x/hari), riwayat 12 periode.
+
+### Notifikasi
+- WhatsApp via Fonnte (mode simulasi kalau `FONNTE_TOKEN` kosong) — reminder H-3/H-1/H-0, nudge grup, OTP.
+- Push via Expo Push Notification Service (bukan lagi Emergent relay).
+- Scheduler `asyncio` loop 30 menit: reminder_sweep, expire_premiums_sweep, promo_reminder_sweep, monthly_summary_sweep.
+
+### Monetisasi
+- Mayar.id (Membership API v2) — `/auth/upgrade` checkout, `/webhooks/mayar` satu-satunya tempat plan berubah.
+- Downgrade 3-langkah (konfirmasi → alasan → penawaran retensi).
+- Program referral: kode unik per user, referrer dapat 30 hari Premium gratis saat referee jadi Premium (constant `REFERRAL_REWARD_DAYS` di `server.py`).
+
+### Marketing/SEO (masih berkonten Notifin, siap di-rebrand)
+- Landing page, `/pricing` (perbandingan + FAQ), `/faq` standalone, `/blog` (4 artikel bilingual di `src/content/blog.ts`, belum ada CMS), sitemap.xml + robots.txt yang benar (app routes di-Disallow).
+- Trust badges + payment transparency (tanpa testimoni palsu).
+
+### Admin
+- Panel HTML inline di `GET /admin` (password tunggal `ADMIN_PASSWORD`): dashboard, tabel akun, export xlsx, kelola promo/whats-new, dark mode.
+
+### Testing
+- `backend/tests/` — 66 test, semua lulus (`pytest` dari `backend/`, `pytest.ini` sudah benar pakai `--dist loadgroup`).
+
+## Backlog (SakuAman — belum dikerjakan)
+- Rebranding: nama app, warna/logo, landing copy, ganti/isi ulang konten blog.
+- Perluas model data dari "subscriptions" jadi konsep tagihan/kewajiban yang lebih umum (listrik/air/internet, cicilan, iuran, SPP).
+- Fitur inti v1 (lihat bagian atas): Anggaran & catat transaksi, proyeksi "Saku Aman", Siklus Gajian custom, Tabungan & Goals, modul Arisan (feature-flagged, default off).
+- Redesain sistem grup existing jadi "berbagi rumah tangga".
+- Redesain dashboard ke arah Saku Aman (sisa uang aman + proyeksi habis), bukan cuma total pengeluaran.
 
 ## Pending user inputs / build notes
-- Push migrated off the Emergent relay to Expo Push Notification Service (2026-09): `send_push()`/`/api/register-push` in `backend/server.py` now store the device token in `db.push_tokens` and POST straight to `https://exp.host/--/api/v2/push/send`, no API key needed. Client (`AuthContext.tsx`) calls `Notifications.getExpoPushTokenAsync({ projectId })` instead of `getDevicePushTokenAsync()` — this needs an EAS project id in `app.json` (`extra.eas.projectId`) to return a real token; until an EAS project exists it fails closed (caught, non-blocking) same as before.
-- FONNTE_TOKEN (backend/.env) empty → WA simulation mode. User will provide token later.
-- Blog has 4 launch articles but no CMS — adding more means editing `src/content/blog.ts` directly (bilingual id/en entries) until/unless a real content pipeline is built.
-- Referral reward (30 days Premium) is a constant (`REFERRAL_REWARD_DAYS` in `server.py`) — change it there if the business decides on a different amount.
+- `FONNTE_TOKEN`, `RESEND_API_KEY`/`EMAIL_FROM`, `MAYAR_*` masih kosong di production Railway → semua integrasi eksternal jalan mode simulasi. Isi kalau mau live.
+- Push ke Expo Push Notification Service butuh EAS project id di `app.json` (`extra.eas.projectId`) buat dapat token asli — belum ada EAS project.
+- Blog 4 artikel launch, belum ada CMS — nambah artikel = edit `src/content/blog.ts` langsung (entri bilingual id/en).
+- `REFERRAL_REWARD_DAYS` (30 hari) itu constant di `server.py` — ubah di situ kalau reward mau beda.
 
 ## Next Tasks
-- Fase 0–3 of PROMPT.md's plan are complete (local env verified, all backlog items shipped). Next: Fase 4 — deploy (Vercel + Railway), per the user's call on timing.
+Fase 0–4 selesai (checkpoint kerja lokal + production deploy terverifikasi). Prioritas berikutnya terserah user — kemungkinan mulai dari salah satu fitur inti v1 (Anggaran & catat transaksi paling dekat dengan kode Subscriptions yang sudah ada) atau rebranding dulu.
