@@ -115,6 +115,11 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Reachable via the Account screen's "Tabungan & Goals" row (and the
+          desktop sidebar) — kept out of the 5-item bottom tab bar on mobile
+          rather than cramming in a 6th icon, but still lives in this group
+          so it shares the same layout/back-stack as the other tab screens. */}
+      <Tabs.Screen name="goals" options={{ href: null }} />
     </Tabs>
   );
 }

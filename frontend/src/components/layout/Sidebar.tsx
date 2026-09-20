@@ -41,6 +41,13 @@ const NAV_ITEMS = [
     activeIcon: "account-group",
     labelKey: "tabs.groups",
   },
+  {
+    href: "/goals",
+    match: "/goals",
+    icon: "piggy-bank-outline",
+    activeIcon: "piggy-bank",
+    labelKey: "goals.navLabel",
+  },
   { href: "/account", match: "/account", icon: "account-outline", activeIcon: "account", labelKey: "tabs.account" },
 ] as const;
 

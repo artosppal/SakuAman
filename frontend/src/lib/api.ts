@@ -160,6 +160,17 @@ export const api = {
     apiFetch(`/budgets/${category}`, { method: "PUT", body: JSON.stringify({ monthly_amount }) }),
   deleteBudget: (category: string) => apiFetch(`/budgets/${category}`, { method: "DELETE" }),
 
+  listGoals: () => apiFetch("/goals"),
+  getGoal: (id: string) => apiFetch(`/goals/${id}`),
+  createGoal: (body: any) =>
+    apiFetch("/goals", { method: "POST", body: JSON.stringify(body) }),
+  updateGoal: (id: string, body: any) =>
+    apiFetch(`/goals/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteGoal: (id: string) => apiFetch(`/goals/${id}`, { method: "DELETE" }),
+  depositToGoal: (id: string, body: { amount: number; date?: string }) =>
+    apiFetch(`/goals/${id}/deposit`, { method: "POST", body: JSON.stringify(body) }),
+  listGoalDeposits: (id: string) => apiFetch(`/goals/${id}/deposits`),
+
   listGroups: () => apiFetch("/groups"),
   createGroup: (name: string) =>
     apiFetch("/groups", { method: "POST", body: JSON.stringify({ name }) }),
