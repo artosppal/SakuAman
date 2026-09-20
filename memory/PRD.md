@@ -81,7 +81,7 @@ Kode SakuAman berawal dari **Notifin** (subscription tracker — di-scaffold di 
 - `backend/tests/` — 66 test, semua lulus (`pytest` dari `backend/`, `pytest.ini` sudah benar pakai `--dist loadgroup`).
 
 ## Backlog (SakuAman — belum dikerjakan)
-- Rebranding: nama app, warna/logo, landing copy, ganti/isi ulang konten blog.
+- Rebranding: ~~landing copy~~ — **selesai** (Langkah 6, lihat di bawah). Warna/logo sudah dari "Rebrand tampilan". Sisa: ganti/isi ulang konten blog (4 artikel masih bahas subscription tracker), copy `/pricing` standalone dan `/faq` standalone (masih "langganan"-flavored, belum ikut di-rewrite Langkah 6).
 - ~~Perluas model data dari "subscriptions" jadi konsep tagihan/kewajiban yang lebih umum~~ — **selesai** (Langkah 5). UI untuk field baru (`type` selain subscription, `end_date`, tandai-lunas-per-periode) belum ada.
 - ~~Anggaran & catat transaksi~~ — **selesai** (Langkah 5). Kategori pengeluaran rumah tangga (`expenseCategories.ts`) masih terpisah dari kategori langganan (`categories.ts`) — belum disatukan/dipikirkan ulang sebagai satu taksonomi.
 - ~~Fitur inti v1 sisanya: proyeksi "Saku Aman", Siklus Gajian custom, Tabungan & Goals~~ — **semua selesai** (Langkah 5). Yang masih tersisa dari daftar semula: modul Arisan (feature-flagged, default off) — skema lengkap di `docs/DATA_MODEL.md`, belum ada endpoint/UI.
@@ -108,6 +108,22 @@ sama seperti Notifin — itu keputusan desain terpisah (Langkah 6), bukan bagian
 - `bundleIdentifier`/`package` native di `app.json` masih `com.notifin.app` — sengaja belum diubah
   (App Store Connect / Google Play listing dan config Google OAuth bisa terikat ke identifier ini;
   ganti nanti kapan pun sebelum submit ke app store, bukan hal yang mendesak untuk web-only saat ini).
+
+## Langkah 6 — redesign landing page (selesai, 2026-09-20)
+Copy landing page (`src/i18n/translations.ts` key `landing.*`, id+en) ditulis ulang total dari framing
+"pelacak langganan" (Notifin) ke "keuangan rumah tangga / Saku Aman" — hero title jadi "Uangmu Aman
+Sampai Gajian Tiba", eyebrow "KEUANGAN RUMAH TANGGA", 3 fitur unggulan diganti jadi Saku Aman/Semua
+Tagihan/Nabung (dari sebelumnya reminder/dashboard/family-sharing), "Cara Kerja" dan CTA ikut disesuaikan.
+Mock kartu di hero (`DashboardMock` di `LandingPage.tsx`) di-redesign total: sebelumnya daftar jatuh
+tempo langganan (Netflix/Spotify/iCloud+) polos, sekarang banner gradient "Saku Aman Hari Ini" (meniru
+kartu asli di dashboard) + daftar jatuh tempo kewajiban rumah tangga (listrik/cicilan motor/SPP anak) +
+anggaran bulan ini. Icon 3 kartu fitur disesuaikan (shield-check/bell-ring/piggy-bank). Diverifikasi
+manual di browser (mobile + desktop width), teks dan visual sudah sesuai.
+
+**Sengaja di luar scope Langkah 6** (bukan lupa): `/pricing` standalone page dan `/faq` standalone page
+(`pricingPage.*`) masih penuh istilah "langganan" (rowSubs, dst) — surface terpisah dari landing utama,
+belum disentuh. 4 artikel blog (`src/content/blog.ts`) juga belum diganti, masih bahas subscription
+tracker. Keduanya kandidat lanjutan kalau mau benar-benar tuntas rebrand copy.
 
 ## Pending user inputs / build notes
 - `FONNTE_TOKEN`, `RESEND_API_KEY`/`EMAIL_FROM`, `MAYAR_*` masih kosong di production Railway → semua integrasi eksternal jalan mode simulasi. Isi kalau mau live.
