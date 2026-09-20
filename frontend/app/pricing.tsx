@@ -41,6 +41,7 @@ export default function PricingPage() {
 
   const comparisonRows: { label: string; free: string | boolean; premium: string | boolean }[] = [
     { label: t("pricingPage.rowSubs"), free: t("pricingPage.rowSubsFree"), premium: t("pricingPage.rowSubsPremium") },
+    { label: t("pricingPage.rowGoals"), free: t("pricingPage.rowGoalsFree"), premium: t("pricingPage.rowGoalsPremium") },
     { label: t("pricingPage.rowPush"), free: true, premium: true },
     { label: t("pricingPage.rowDashboard"), free: true, premium: true },
     { label: t("pricingPage.rowWa"), free: t("pricingPage.rowWaFree"), premium: t("pricingPage.rowWaPremium") },

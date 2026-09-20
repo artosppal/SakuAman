@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "frontend-web",
-      "runtimeExecutable": "yarn",
-      "runtimeArgs": ["web"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "frontend", "run", "web"],
       "port": 8081
     }
   ]
