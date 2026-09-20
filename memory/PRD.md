@@ -82,16 +82,22 @@ Kode SakuAman berawal dari **Notifin** (subscription tracker — di-scaffold di 
 
 ## Backlog (SakuAman — belum dikerjakan)
 - Rebranding: nama app, warna/logo, landing copy, ganti/isi ulang konten blog.
-- Perluas model data dari "subscriptions" jadi konsep tagihan/kewajiban yang lebih umum (listrik/air/internet, cicilan, iuran, SPP).
-- Fitur inti v1 (lihat bagian atas): Anggaran & catat transaksi, proyeksi "Saku Aman", Siklus Gajian custom, Tabungan & Goals, modul Arisan (feature-flagged, default off).
+- ~~Perluas model data dari "subscriptions" jadi konsep tagihan/kewajiban yang lebih umum~~ — **selesai** (Langkah 5, lihat di bawah). UI untuk field baru (`type` selain subscription, `end_date`, tandai-lunas-per-periode) belum ada.
+- Fitur inti v1 sisanya: Anggaran & catat transaksi (`transactions`, `budgets`), proyeksi "Saku Aman", Siklus Gajian custom (`payday`), Tabungan & Goals, modul Arisan (feature-flagged, default off) — skema lengkap di `docs/DATA_MODEL.md`, belum ada endpoint/UI.
 - Redesain sistem grup existing jadi "berbagi rumah tangga".
 - Redesain dashboard ke arah Saku Aman (sisa uang aman + proyeksi habis), bukan cuma total pengeluaran.
+
+## Langkah 5 — progres implementasi
+- **Obligations (selesai, 2026-09-20)**: `subscriptions` diganti total jadi `obligations` di backend (model `ObligationBody`: +`type`, +`end_date`, +`period_status`; endpoint `/subscriptions`→`/obligations`; endpoint baru `PUT /obligations/{id}/pay` — tandai periode lunas + auto-maju `next_due_date`). Freemium Free naik dari 3→8 obligations aktif (`PLANS` config baru di `server.py`, lihat `docs/DATA_MODEL.md` §7). Frontend (`api.ts`, layar Langganan, form tambah/edit) sudah ikut pindah ke endpoint baru. 71/71 backend test lulus (66 lama + 5 test baru utk `/pay`). Diverifikasi manual end-to-end di browser (daftar→dashboard→tambah→edit→hapus).
+- Belum ada UI untuk: memilih `type` selain "subscription" (recurring_bill/installment/dues/tuition), `end_date`, atau tombol "tandai lunas" (endpoint `/pay` sudah ada tapi belum dipanggil dari layar mana pun).
+- Belum dikerjakan sama sekali: `transactions`, `budgets`, `savings_goals`/`savings_deposits`, `payday`, endpoint `/saku-aman`, `arisan_*` — semua masih di tahap desain (`docs/DATA_MODEL.md`), belum ada baris kode.
 
 ## Pending user inputs / build notes
 - `FONNTE_TOKEN`, `RESEND_API_KEY`/`EMAIL_FROM`, `MAYAR_*` masih kosong di production Railway → semua integrasi eksternal jalan mode simulasi. Isi kalau mau live.
 - Push ke Expo Push Notification Service butuh EAS project id di `app.json` (`extra.eas.projectId`) buat dapat token asli — belum ada EAS project.
 - Blog 4 artikel launch, belum ada CMS — nambah artikel = edit `src/content/blog.ts` langsung (entri bilingual id/en).
 - `REFERRAL_REWARD_DAYS` (30 hari) itu constant di `server.py` — ubah di situ kalau reward mau beda.
+- Local dev: kalau buka shell baru, `EXPO_PUBLIC_BACKEND_URL` harus di-export manual (`export EXPO_PUBLIC_BACKEND_URL=http://localhost:8000`) sebelum `pytest` di `backend/` — kalau tidak, test diam-diam nyasar ke URL Emergent preview lama dan semua gagal dengan pesan yang membingungkan (`KeyError: 'dev_code'`).
 
 ## Next Tasks
-Fase 0–4 selesai (checkpoint kerja lokal + production deploy terverifikasi). Prioritas berikutnya terserah user — kemungkinan mulai dari salah satu fitur inti v1 (Anggaran & catat transaksi paling dekat dengan kode Subscriptions yang sudah ada) atau rebranding dulu.
+Fase 0–4 selesai (checkpoint kerja lokal + production deploy terverifikasi). Langkah 5 slice pertama (obligations) selesai. Slice berikutnya yang paling masuk akal: **Anggaran & catat transaksi** (`transactions`+`budgets`, paling dekat secara konsep dengan obligations yang baru selesai) — atau rebranding kalau user mau ubah arah dulu.
