@@ -28,6 +28,13 @@ const NAV_ITEMS = [
     labelKey: "tabs.subscriptions",
   },
   {
+    href: "/transactions",
+    match: "/transactions",
+    icon: "wallet-outline",
+    activeIcon: "wallet",
+    labelKey: "tabs.transactions",
+  },
+  {
     href: "/groups",
     match: "/groups",
     icon: "account-group-outline",

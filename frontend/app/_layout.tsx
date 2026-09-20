@@ -99,6 +99,8 @@ function RootNavigator() {
       <Stack.Screen name="onboarding" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="subscription/form" options={{ presentation: "modal" }} />
+      <Stack.Screen name="transaction/form" options={{ presentation: "modal" }} />
+      <Stack.Screen name="budget/form" options={{ presentation: "modal" }} />
       <Stack.Screen name="spending-history" />
       <Stack.Screen name="referral" />
       <Stack.Screen name="group/[id]" />

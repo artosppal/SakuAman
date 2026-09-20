@@ -139,6 +139,24 @@ export const api = {
   paySub: (id: string, body: { period: string; amount_paid?: number }) =>
     apiFetch(`/obligations/${id}/pay`, { method: "PUT", body: JSON.stringify(body) }),
 
+  listTransactions: (month?: string, kind?: string) => {
+    const p = new URLSearchParams();
+    if (month) p.append("month", month);
+    if (kind) p.append("kind", kind);
+    const q = p.toString();
+    return apiFetch(`/transactions${q ? `?${q}` : ""}`);
+  },
+  createTransaction: (body: any) =>
+    apiFetch("/transactions", { method: "POST", body: JSON.stringify(body) }),
+  updateTransaction: (id: string, body: any) =>
+    apiFetch(`/transactions/${id}`, { method: "PUT", body: JSON.stringify(body) }),
+  deleteTransaction: (id: string) => apiFetch(`/transactions/${id}`, { method: "DELETE" }),
+
+  listBudgets: () => apiFetch("/budgets"),
+  setBudget: (category: string, monthly_amount: number) =>
+    apiFetch(`/budgets/${category}`, { method: "PUT", body: JSON.stringify({ monthly_amount }) }),
+  deleteBudget: (category: string) => apiFetch(`/budgets/${category}`, { method: "DELETE" }),
+
   listGroups: () => apiFetch("/groups"),
   createGroup: (name: string) =>
     apiFetch("/groups", { method: "POST", body: JSON.stringify({ name }) }),
