@@ -4687,9 +4687,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=[
-        "https://emergent-app-vert.vercel.app",
-        "https://notifin.online",
-        "https://www.notifin.online",
+        "https://sakuaman.vercel.app",
         # Expo web dev server (`expo start --web`) — harmless in production,
         # only reachable from someone's own machine.
         "http://localhost:8081",
