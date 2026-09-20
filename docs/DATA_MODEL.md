@@ -179,16 +179,16 @@ sudah ada, saya condong tetap di `server.py` biar konsisten):
 ```python
 PLANS = {
     "free": {
-        "max_obligations_active": ???,      # lihat pertanyaan §7 #1
-        "max_goals_active": ???,
+        "max_obligations_active": 8,
+        "max_goals_active": 3,
         "wa_notif_quota_per_month": 5,       # reuse angka existing (FREE_WA_NOTIF_LIMIT)
-        "arisan_enabled": False,
+        "arisan_can_create": False,           # join tetap boleh, semua plan (pola sama seperti grup)
     },
     "premium": {
         "max_obligations_active": None,      # unlimited
         "max_goals_active": None,
         "wa_notif_quota_per_month": None,
-        "arisan_enabled": ???,               # premium-only, atau semua plan (kalau flag global nyala)?
+        "arisan_can_create": True,
     },
 }
 ARISAN_FEATURE_ENABLED = False  # kill-switch global — endpoint 404 kalau False, apa pun plan-nya
@@ -199,23 +199,22 @@ adanya). Referral & pembatasan toggle WhatsApp dari Notifin: **dipakai ulang tan
 
 ---
 
-## 7. Pertanyaan buat Anda (perlu dijawab sebelum Langkah 5 mulai)
+## 7. Keputusan (dijawab 2026-09-20)
 
-1. **Batas paket Free** — Notifin pakai maks 3 langganan. SakuAman cakupannya lebih luas (bisa
-   sekaligus ada listrik+air+internet+cicilan+SPP), 3 kemungkinan kerasa sempit. Berapa
-   `max_obligations_active` dan `max_goals_active` yang masuk akal buat Free?
-2. **Konfirmasi**: `obligations` MENGGANTIKAN `subscriptions` sepenuhnya (bukan dua sistem paralel)
-   — setuju? Ini yang paling besar dampaknya ke Langkah 5 (lihat §3, §5).
-3. **Dana tagihan tahunan** — begitu user bikin `obligation` bertipe tahunan (misal SPP tahunan),
-   apakah goal tabungan-nya **otomatis dibuatkan sistem**, atau user pilih manual "jadikan tabungan
-   bulanan" per obligation? Saya asumsikan manual (opt-in) di rancangan ini — betul?
-4. **Anggaran kategori yang belum diisi** — kalau user belum set `budgets` buat suatu kategori,
-   pengeluaran di situ dianggap **tidak membatasi Saku Aman** (default: unlimited/tidak dihitung),
-   atau **langsung dianggap over-budget** (default: 0)? Ini pengaruh besar ke akurasi proyeksi.
-5. **`payday` belum diisi** — default ke tanggal 1 kalender biasa (rancangan saat ini), atau wajib
-   diisi user di onboarding sebelum bisa pakai Saku Aman?
-6. **Arisan premium/free** — kalau flag global sudah dinyalakan nanti, arisan itu fitur Premium-only
-   (seperti create-grup Notifin sekarang) atau semua plan boleh buat arisan?
+1. **Batas paket Free**: `max_obligations_active = 8`, `max_goals_active = 3`. Naik dari 3 (Notifin)
+   karena cakupan lebih luas (listrik+air+internet+cicilan+SPP bisa 5+ sekaligus buat rumah tangga
+   biasa) — 8 masih jadi dorongan wajar buat upgrade, bukan ngerem pemakaian normal.
+2. **Konfirmasi**: `obligations` MENGGANTIKAN `subscriptions` sepenuhnya — **disetujui**. Bukan dua
+   sistem paralel (lihat §3, dampak test di §5).
+3. **Dana tagihan tahunan**: **opt-in/manual**. User bikin `obligation` tahunan dulu, baru ada tombol
+   "Jadikan tabungan bulanan" kalau mau — tidak auto-create goal tanpa diminta.
+4. **Kategori tanpa `budgets`**: **unlimited/tidak dihitung** sebagai pembatas Saku Aman (bukan
+   dianggap over-budget/0), sampai user secara sadar isi budget kategori itu — hindari alarm palsu
+   di pengalaman awal.
+5. **`payday` belum diisi**: default ke tanggal 1 kalender (tidak wajib di onboarding), plus
+   **soft-prompt** di dashboard ("Atur tanggal gajian biar Saku Aman lebih akurat") kalau kosong —
+   tidak blocking.
+6. **Arisan premium/free**: **bikin arisan = Premium-only** (konsisten create-grup Notifin sekarang),
+   **join arisan = semua plan** (konsisten join-grup Notifin, kode 6 karakter).
 
-Boleh dijawab poin per poin, atau kalau semua asumsi saya di atas sudah pas, tinggal bilang "setuju,
-lanjut" dan saya mulai Langkah 5.
+**Status: disetujui, siap Langkah 5.**
