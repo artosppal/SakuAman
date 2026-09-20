@@ -84,7 +84,7 @@ function Hero({ isWide, onSignup, onLogin, t }: any) {
       <View style={[styles.heroLayout, isWide && styles.heroLayoutWide]}>
         <View style={[styles.heroText, isWide && { maxWidth: 520 }]}>
           <View style={styles.eyebrow}>
-            <MaterialCommunityIcons name="bell-ring-outline" size={14} color={colors.brandDark} />
+            <MaterialCommunityIcons name="shield-check-outline" size={14} color={colors.brandDark} />
             <Text style={styles.eyebrowText}>{t("landing.heroEyebrow")}</Text>
           </View>
 
@@ -128,7 +128,21 @@ function DashboardMock({ t }: any) {
   ];
   return (
     <View style={styles.mockCard}>
-      <Text style={styles.mockCardTitle}>{t("landing.mockCardTitle")}</Text>
+      <LinearGradient
+        colors={[colors.brand, colors.brandDark]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.mockSakuAmanBanner}
+      >
+        <View style={styles.mockSakuAmanTopRow}>
+          <MaterialCommunityIcons name="shield-check" size={15} color="#FFFFFF" />
+          <Text style={styles.mockSakuAmanLabel}>{t("landing.mockCardTitle")}</Text>
+        </View>
+        <Text style={styles.mockSakuAmanAmount}>Rp1.425.000</Text>
+        <Text style={styles.mockSakuAmanSub}>{t("landing.mockSakuAmanSub")}</Text>
+      </LinearGradient>
+
+      <Text style={styles.mockDueTitle}>{t("landing.mockDueTitle")}</Text>
       {items.map((it) => (
         <View key={it.name} style={styles.mockRow}>
           <View style={styles.mockRowLeft}>
@@ -143,7 +157,7 @@ function DashboardMock({ t }: any) {
       <View style={styles.mockDivider} />
       <View style={styles.mockRow}>
         <Text style={styles.mockTotalLabel}>{t("landing.mockTotalLabel")}</Text>
-        <Text style={styles.mockTotalValue}>Rp487.000</Text>
+        <Text style={styles.mockTotalValue}>Rp3.000.000</Text>
       </View>
     </View>
   );
@@ -177,9 +191,9 @@ function TrustBar({ isWide, t }: any) {
 // ---------------- Features ----------------
 function Features({ isWide, t }: any) {
   const items = [
-    { icon: "bell-ring", title: t("landing.feature1Title"), body: t("landing.feature1Body") },
-    { icon: "view-dashboard", title: t("landing.feature2Title"), body: t("landing.feature2Body") },
-    { icon: "account-group", title: t("landing.feature3Title"), body: t("landing.feature3Body") },
+    { icon: "shield-check", title: t("landing.feature1Title"), body: t("landing.feature1Body") },
+    { icon: "bell-ring", title: t("landing.feature2Title"), body: t("landing.feature2Body") },
+    { icon: "piggy-bank", title: t("landing.feature3Title"), body: t("landing.feature3Body") },
   ];
   return (
     <View style={sharedStyles.sectionOuterAlt}>
@@ -462,6 +476,16 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   mockCardTitle: { fontFamily: font.bold, fontSize: fontSize.lg, color: colors.onSurface, marginBottom: spacing.lg },
+  mockSakuAmanBanner: {
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  mockSakuAmanTopRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  mockSakuAmanLabel: { fontFamily: font.semibold, fontSize: fontSize.sm, color: "rgba(255,255,255,0.85)" },
+  mockSakuAmanAmount: { fontFamily: font.extrabold, fontSize: fontSize["2xl"], color: "#FFFFFF", marginTop: 4 },
+  mockSakuAmanSub: { fontFamily: font.medium, fontSize: fontSize.sm, color: "rgba(255,255,255,0.85)", marginTop: 2 },
+  mockDueTitle: { fontFamily: font.bold, fontSize: fontSize.base, color: colors.onSurface, marginBottom: spacing.sm },
   mockRow: {
     flexDirection: "row",
     alignItems: "center",
