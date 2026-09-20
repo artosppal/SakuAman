@@ -95,6 +95,18 @@ Kode SakuAman berawal dari **Notifin** (subscription tracker — di-scaffold di 
 - Belum dikerjakan sama sekali: `savings_goals`/`savings_deposits`, `payday`, endpoint `/saku-aman`, `arisan_*` — semua masih di tahap desain (`docs/DATA_MODEL.md`), belum ada baris kode.
 - **Dicatat, belum diperbaiki**: console error pre-existing (`Cannot read properties of undefined (reading 'filter')` di BottomTabNavigator/SlotNavigator, tertangkap & di-recover otomatis oleh React error boundary, tidak berdampak fungsional di semua yang sudah diuji) — di-flag sebagai task terpisah (`task_7a6f6777`), BUKAN disebabkan oleh perubahan Langkah 5.
 
+## Rebrand tampilan (selesai, 2026-09-20)
+Nama app, logo mark (shield-check, ganti dari bell Notifin), dan icon/favicon/splash (di-generate
+baru — ternyata sebelumnya masih logo default scaffold Emergent, belum pernah di-branding) sudah
+konsisten "SakuAman" di semua layar user-visible. Warna brand (#059669) dan copy landing/blog masih
+sama seperti Notifin — itu keputusan desain terpisah (Langkah 6), bukan bagian dari perubahan ini.
+- `support@sakuaman.id` dipakai sebagai email support di footer/terms/privacy — **domain ini belum
+  didaftarkan**, cuma placeholder. Daftarkan domain + setup mailbox/forwarding sebelum go-live, atau
+  ganti ke domain lain yang sudah dipunya.
+- `bundleIdentifier`/`package` native di `app.json` masih `com.notifin.app` — sengaja belum diubah
+  (App Store Connect / Google Play listing dan config Google OAuth bisa terikat ke identifier ini;
+  ganti nanti kapan pun sebelum submit ke app store, bukan hal yang mendesak untuk web-only saat ini).
+
 ## Pending user inputs / build notes
 - `FONNTE_TOKEN`, `RESEND_API_KEY`/`EMAIL_FROM`, `MAYAR_*` masih kosong di production Railway → semua integrasi eksternal jalan mode simulasi. Isi kalau mau live.
 - Push ke Expo Push Notification Service butuh EAS project id di `app.json` (`extra.eas.projectId`) buat dapat token asli — belum ada EAS project.
