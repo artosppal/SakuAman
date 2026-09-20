@@ -351,6 +351,134 @@ class TestObligationsPay:
         assert r.status_code == 404
 
 
+# --------------------- transactions ---------------------
+class TestTransactions:
+    def _user(self, s):
+        email = f"test_txn_{uuid.uuid4().hex[:10]}@example.com"
+        data = register_verified(s, email, "rahasia123", "TEST Txn")
+        return data["session_token"]
+
+    def test_create_expense_and_income(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/transactions",
+                   json={"kind": "expense", "amount": 50000, "category": "food",
+                         "note": "TEST makan siang", "date": "2026-03-05"},
+                   headers=auth(tok))
+        assert r.status_code == 200, r.text
+        txn = r.json()["transaction"]
+        assert txn["kind"] == "expense"
+        assert txn["category"] == "food"
+
+        r2 = s.post(f"{API}/transactions",
+                    json={"kind": "income", "amount": 5000000, "category": "whatever",
+                          "date": "2026-03-01"},
+                    headers=auth(tok))
+        assert r2.status_code == 200, r2.text
+        # category is forced to "income" for kind=income regardless of what's sent
+        assert r2.json()["transaction"]["category"] == "income"
+
+    def test_invalid_kind_422(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/transactions",
+                   json={"kind": "invalid", "amount": 10000, "date": "2026-03-05"},
+                   headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_zero_amount_422(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/transactions",
+                   json={"kind": "expense", "amount": 0, "date": "2026-03-05"},
+                   headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_list_filter_by_month_and_kind(self, s):
+        tok = self._user(s)
+        s.post(f"{API}/transactions",
+               json={"kind": "expense", "amount": 20000, "category": "food", "date": "2026-04-10"},
+               headers=auth(tok))
+        s.post(f"{API}/transactions",
+               json={"kind": "expense", "amount": 30000, "category": "food", "date": "2026-05-01"},
+               headers=auth(tok))
+        s.post(f"{API}/transactions",
+               json={"kind": "income", "amount": 100000, "date": "2026-04-15"},
+               headers=auth(tok))
+
+        r = s.get(f"{API}/transactions?month=2026-04", headers=auth(tok))
+        assert r.status_code == 200
+        dates = {t["date"] for t in r.json()["transactions"]}
+        assert dates == {"2026-04-10", "2026-04-15"}
+
+        r2 = s.get(f"{API}/transactions?month=2026-04&kind=expense", headers=auth(tok))
+        kinds = {t["kind"] for t in r2.json()["transactions"]}
+        assert kinds == {"expense"}
+
+    def test_update_and_delete(self, s):
+        tok = self._user(s)
+        r = s.post(f"{API}/transactions",
+                   json={"kind": "expense", "amount": 15000, "category": "transport",
+                         "date": "2026-03-05"},
+                   headers=auth(tok))
+        txn_id = r.json()["transaction"]["id"]
+
+        r2 = s.put(f"{API}/transactions/{txn_id}",
+                   json={"kind": "expense", "amount": 17500, "category": "transport",
+                         "date": "2026-03-06"},
+                   headers=auth(tok))
+        assert r2.status_code == 200, r2.text
+        assert r2.json()["transaction"]["amount"] == 17500
+
+        r3 = s.delete(f"{API}/transactions/{txn_id}", headers=auth(tok))
+        assert r3.status_code == 200
+        remaining = s.get(f"{API}/transactions", headers=auth(tok)).json()["transactions"]
+        assert all(t["id"] != txn_id for t in remaining)
+
+    def test_delete_unknown_404(self, s):
+        tok = self._user(s)
+        r = s.delete(f"{API}/transactions/does-not-exist", headers=auth(tok))
+        assert r.status_code == 404
+
+
+# --------------------- budgets ---------------------
+class TestBudgets:
+    def _user(self, s):
+        email = f"test_budget_{uuid.uuid4().hex[:10]}@example.com"
+        data = register_verified(s, email, "rahasia123", "TEST Budget")
+        return data["session_token"]
+
+    def test_set_and_list(self, s):
+        tok = self._user(s)
+        r = s.put(f"{API}/budgets/food", json={"monthly_amount": 1500000}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        assert r.json()["budget"]["category"] == "food"
+        assert r.json()["budget"]["monthly_amount"] == 1500000
+
+        r2 = s.get(f"{API}/budgets", headers=auth(tok))
+        cats = {b["category"] for b in r2.json()["budgets"]}
+        assert "food" in cats
+
+    def test_set_upserts_existing(self, s):
+        tok = self._user(s)
+        s.put(f"{API}/budgets/transport", json={"monthly_amount": 500000}, headers=auth(tok))
+        r = s.put(f"{API}/budgets/transport", json={"monthly_amount": 750000}, headers=auth(tok))
+        assert r.json()["budget"]["monthly_amount"] == 750000
+        budgets = s.get(f"{API}/budgets", headers=auth(tok)).json()["budgets"]
+        transport = [b for b in budgets if b["category"] == "transport"]
+        assert len(transport) == 1
+
+    def test_zero_amount_422(self, s):
+        tok = self._user(s)
+        r = s.put(f"{API}/budgets/food", json={"monthly_amount": 0}, headers=auth(tok))
+        assert r.status_code == 422
+
+    def test_delete_budget_removes_it(self, s):
+        tok = self._user(s)
+        s.put(f"{API}/budgets/health", json={"monthly_amount": 200000}, headers=auth(tok))
+        r = s.delete(f"{API}/budgets/health", headers=auth(tok))
+        assert r.status_code == 200
+        budgets = s.get(f"{API}/budgets", headers=auth(tok)).json()["budgets"]
+        assert all(b["category"] != "health" for b in budgets)
+
+
 # --------------------- dashboard ---------------------
 class TestDashboard:
     def test_dashboard_structure(self, s, free_user):

@@ -1517,6 +1517,137 @@ async def pay_obligation(sub_id: str, body: ObligationPayBody, user: dict = Depe
 
 
 # ---------------------------------------------------------------------------
+# Transactions & Budgets — catat pemasukan/pengeluaran cepat + anggaran
+# amplop per kategori (docs/DATA_MODEL.md §1). Tidak digating freemium:
+# semua plan bebas catat transaksi & atur budget sebanyak apa pun.
+# ---------------------------------------------------------------------------
+TRANSACTION_KINDS = {"income", "expense"}
+
+
+class TransactionBody(BaseModel):
+    kind: str                     # income | expense
+    amount: float
+    category: str = "other"       # diabaikan secara efektif kalau kind=income
+    note: Optional[str] = None
+    date: str                     # YYYY-MM-DD
+
+
+def txn_public(t: dict) -> dict:
+    return {
+        "id": t["id"],
+        "kind": t.get("kind", "expense"),
+        "amount": t.get("amount", 0),
+        "category": t.get("category", "other"),
+        "note": t.get("note"),
+        "date": t.get("date"),
+        "created_at": t.get("created_at"),
+    }
+
+
+@api_router.get("/transactions")
+async def list_transactions(
+    month: Optional[str] = None,   # YYYY-MM — filter satu bulan kalender
+    kind: Optional[str] = None,
+    category: Optional[str] = None,
+    user: dict = Depends(get_current_user),
+):
+    q: dict = {"user_id": user["user_id"], "deleted_at": None}
+    if month:
+        q["date"] = {"$gte": f"{month}-01", "$lt": f"{month}-32"}
+    if kind and kind != "all":
+        q["kind"] = kind
+    if category and category != "all":
+        q["category"] = category
+    docs = await db.transactions.find(q, {"_id": 0}).sort("date", -1).to_list(2000)
+    return {"transactions": [txn_public(d) for d in docs]}
+
+
+@api_router.post("/transactions")
+async def create_transaction(body: TransactionBody, user: dict = Depends(get_current_user)):
+    if body.kind not in TRANSACTION_KINDS:
+        raise HTTPException(status_code=422, detail="Jenis transaksi tidak dikenal")
+    if body.amount <= 0:
+        raise HTTPException(status_code=422, detail="Nominal harus lebih dari 0")
+    doc = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["user_id"],
+        **body.model_dump(),
+        "category": "income" if body.kind == "income" else body.category,
+        "deleted_at": None,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.transactions.insert_one(doc)
+    return {"transaction": txn_public(doc)}
+
+
+@api_router.put("/transactions/{txn_id}")
+async def update_transaction(txn_id: str, body: TransactionBody, user: dict = Depends(get_current_user)):
+    if body.kind not in TRANSACTION_KINDS:
+        raise HTTPException(status_code=422, detail="Jenis transaksi tidak dikenal")
+    if body.amount <= 0:
+        raise HTTPException(status_code=422, detail="Nominal harus lebih dari 0")
+    doc = await db.transactions.find_one(
+        {"id": txn_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
+    update = {**body.model_dump(), "category": "income" if body.kind == "income" else body.category}
+    await db.transactions.update_one({"id": txn_id}, {"$set": update})
+    updated = await db.transactions.find_one({"id": txn_id}, {"_id": 0})
+    return {"transaction": txn_public(updated)}
+
+
+@api_router.delete("/transactions/{txn_id}")
+async def delete_transaction(txn_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.transactions.find_one(
+        {"id": txn_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Transaksi tidak ditemukan")
+    await db.transactions.update_one(
+        {"id": txn_id}, {"$set": {"deleted_at": now_utc().isoformat()}})
+    return {"status": "deleted"}
+
+
+class BudgetBody(BaseModel):
+    monthly_amount: float
+
+
+def budget_public(b: dict) -> dict:
+    return {
+        "category": b["category"],
+        "monthly_amount": b.get("monthly_amount", 0),
+        "updated_at": b.get("updated_at"),
+    }
+
+
+@api_router.get("/budgets")
+async def list_budgets(user: dict = Depends(get_current_user)):
+    docs = await db.budgets.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(200)
+    return {"budgets": [budget_public(d) for d in docs]}
+
+
+@api_router.put("/budgets/{category}")
+async def set_budget(category: str, body: BudgetBody, user: dict = Depends(get_current_user)):
+    if body.monthly_amount <= 0:
+        raise HTTPException(status_code=422, detail="Anggaran harus lebih dari 0")
+    await db.budgets.update_one(
+        {"user_id": user["user_id"], "category": category},
+        {"$set": {"monthly_amount": body.monthly_amount, "updated_at": now_utc().isoformat()}},
+        upsert=True,
+    )
+    doc = await db.budgets.find_one(
+        {"user_id": user["user_id"], "category": category}, {"_id": 0})
+    return {"budget": budget_public(doc)}
+
+
+@api_router.delete("/budgets/{category}")
+async def delete_budget(category: str, user: dict = Depends(get_current_user)):
+    """Hapus budget kategori ini — kembali ke semantik 'unlimited/tidak
+    dihitung' (docs/DATA_MODEL.md §7 #4), bukan otomatis jadi 0."""
+    await db.budgets.delete_one({"user_id": user["user_id"], "category": category})
+    return {"status": "deleted"}
+
+
+# ---------------------------------------------------------------------------
 # Promo recommendations — a Premium-only perk shown as a locked card on the
 # dashboard. Content is entirely admin-curated (see /admin/promos below); the
 # app never invents or guesses at real promotions from other services.
@@ -2906,6 +3037,8 @@ async def admin_purge_user(body: AdminConfirmEmailBody, _: None = Depends(requir
     await db.users.delete_one({"user_id": uid})
     await db.user_sessions.delete_many({"user_id": uid})
     await db.obligations.delete_many({"user_id": uid})
+    await db.transactions.delete_many({"user_id": uid})
+    await db.budgets.delete_many({"user_id": uid})
     await db.groups.update_many({"members.user_id": uid}, {"$pull": {"members": {"user_id": uid}}})
     logger.warning(f"Admin permanently purged user: {user.get('email')} ({uid})")
     return {"status": "ok"}
@@ -4713,6 +4846,9 @@ async def startup():
         await db.user_sessions.create_index("user_id")
         await db.obligations.create_index("user_id")
         await db.obligations.create_index("id", unique=True)
+        await db.transactions.create_index([("user_id", 1), ("date", 1)])
+        await db.transactions.create_index("id", unique=True)
+        await db.budgets.create_index([("user_id", 1), ("category", 1)], unique=True)
         await db.groups.create_index("id", unique=True)
         await db.groups.create_index("invite_code", unique=True)
         await db.groups.create_index("members.user_id")
