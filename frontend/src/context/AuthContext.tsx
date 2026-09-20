@@ -32,6 +32,7 @@ export interface User {
   onboarding_completed: boolean;
   has_password?: boolean;
   referral_code?: string | null;
+  payday?: number | null;
 }
 
 interface AuthState {

@@ -72,16 +72,30 @@ interface DashboardData {
   by_category: { category: string; total: number; count: number }[];
 }
 
+interface SakuAmanData {
+  configured: boolean;
+  safe_amount: number;
+  period_start: string;
+  period_end: string;
+  days_left_in_period: number;
+  total_budget: number;
+  total_spent: number;
+  upcoming_obligations_reserved: number;
+  projection: { will_run_out: boolean; run_out_date: string | null };
+  payday: number | null;
+}
+
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const tabH = useContext(BottomTabBarHeightContext) ?? 64 + insets.bottom;
   const router = useRouter();
   const { user } = useAuth();
   const { showUpgrade } = useUpgrade();
-  const { t } = useLanguage();
+  const { t, locale } = useLanguage();
   const toast = useToast();
 
   const [data, setData] = useState<DashboardData | null>(null);
+  const [saku, setSaku] = useState<SakuAmanData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [promoOpen, setPromoOpen] = useState(false);
@@ -179,8 +193,9 @@ export default function Dashboard() {
 
   const load = useCallback(async () => {
     try {
-      const res: any = await api.dashboard();
+      const [res, sakuRes]: any = await Promise.all([api.dashboard(), api.sakuAman()]);
       setData(res);
+      setSaku(sakuRes);
     } catch {
     } finally {
       setLoading(false);
@@ -258,6 +273,8 @@ export default function Dashboard() {
           </View>
         )}
       </View>
+
+      <SakuAmanCard saku={saku} user={user} t={t} locale={locale} router={router} />
 
       {/* Total spend card */}
       <View style={styles.section}>
@@ -652,6 +669,131 @@ export default function Dashboard() {
     </>
   );
 }
+
+function SakuAmanCard({ saku, user, t, locale, router }: any) {
+  const fmtDate = (iso?: string | null) => {
+    if (!iso) return "-";
+    const d = new Date(iso + "T00:00:00");
+    if (isNaN(d.getTime())) return "-";
+    return d.toLocaleDateString(locale, { day: "numeric", month: "long" });
+  };
+
+  if (!saku) return null;
+
+  if (!saku.configured) {
+    return (
+      <View style={sakuStyles.promptCard} testID="saku-aman-prompt-card">
+        <View style={sakuStyles.promptIcon}>
+          <MaterialCommunityIcons name="shield-check-outline" size={22} color={colors.brand} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={sakuStyles.promptTitle}>{t("dashboard.sakuAmanPromptTitle")}</Text>
+          <Text style={sakuStyles.promptBody}>{t("dashboard.sakuAmanPromptBody")}</Text>
+        </View>
+        <Pressable
+          testID="saku-aman-setup-button"
+          style={sakuStyles.promptButton}
+          onPress={() => router.push("/(tabs)/transactions")}
+        >
+          <Text style={sakuStyles.promptButtonText}>{t("dashboard.sakuAmanPromptCta")}</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const negative = saku.safe_amount < 0;
+
+  return (
+    <View style={styles.section}>
+      <View style={[sakuStyles.card, negative && sakuStyles.cardNegative]}>
+        <View style={sakuStyles.topRow}>
+          <MaterialCommunityIcons name="shield-check" size={18} color={colors.onBrandPrimary} />
+          <Text style={sakuStyles.label}>{t("dashboard.sakuAmanLabel")}</Text>
+        </View>
+        <Text style={sakuStyles.amount}>{formatRupiah(saku.safe_amount)}</Text>
+        <Text style={sakuStyles.sub}>
+          {t("dashboard.sakuAmanUntil", { date: fmtDate(saku.period_end) })}
+        </Text>
+
+        {saku.projection?.will_run_out && (
+          <View style={sakuStyles.warnRow}>
+            <MaterialCommunityIcons name="alert" size={15} color="#FEF3C7" />
+            <Text style={sakuStyles.warnText}>
+              {t("dashboard.sakuAmanRunOut", { date: fmtDate(saku.projection.run_out_date) })}
+            </Text>
+          </View>
+        )}
+
+        {!user?.payday && (
+          <Pressable
+            testID="saku-aman-payday-prompt"
+            style={sakuStyles.paydayPrompt}
+            onPress={() => router.push("/(tabs)/account")}
+          >
+            <Text style={sakuStyles.paydayPromptText}>{t("dashboard.sakuAmanPaydayPrompt")} →</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const sakuStyles = StyleSheet.create({
+  card: {
+    backgroundColor: colors.brandDark,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    ...shadow.card,
+  },
+  cardNegative: { backgroundColor: "#B91C1C" },
+  topRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs },
+  label: { fontFamily: font.semibold, fontSize: fontSize.sm, color: "rgba(255,255,255,0.85)" },
+  amount: { fontFamily: font.extrabold, fontSize: 34, color: "#FFFFFF", marginTop: spacing.xs },
+  sub: { fontFamily: font.medium, fontSize: fontSize.sm, color: "rgba(255,255,255,0.85)", marginTop: 2 },
+  warnRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    backgroundColor: "rgba(0,0,0,0.15)",
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  warnText: { fontFamily: font.semibold, fontSize: fontSize.sm, color: "#FEF3C7", flex: 1 },
+  paydayPrompt: { marginTop: spacing.md },
+  paydayPromptText: { fontFamily: font.semibold, fontSize: fontSize.sm, color: "rgba(255,255,255,0.85)" },
+
+  promptCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    marginHorizontal: spacing.xl,
+    marginBottom: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.brandTertiary,
+    borderWidth: 1,
+    borderColor: colors.brand + "33",
+  },
+  promptIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  promptTitle: { fontFamily: font.bold, fontSize: fontSize.base, color: colors.onSurface },
+  promptBody: { fontFamily: font.regular, fontSize: fontSize.sm, color: colors.muted, marginTop: 2 },
+  promptButton: {
+    backgroundColor: colors.brand,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    borderRadius: radius.pill,
+  },
+  promptButtonText: { fontFamily: font.bold, fontSize: fontSize.sm, color: colors.onBrandPrimary },
+});
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },

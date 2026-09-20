@@ -59,6 +59,9 @@ export default function Account() {
   const [newPasswordInput, setNewPasswordInput] = useState("");
   const [confirmPasswordInput, setConfirmPasswordInput] = useState("");
   const [savingPassword, setSavingPassword] = useState(false);
+  const [paydayModal, setPaydayModal] = useState(false);
+  const [paydayInput, setPaydayInput] = useState(user?.payday ? String(user.payday) : "");
+  const [savingPayday, setSavingPayday] = useState(false);
 
   const savePhone = async () => {
     setSavingPhone(true);
@@ -98,6 +101,25 @@ export default function Account() {
       }
     } finally {
       setSavingLimit(false);
+    }
+  };
+
+  const savePayday = async () => {
+    const value = parseInt(paydayInput.replace(/[^0-9]/g, ""), 10);
+    if (!value || value < 1 || value > 31) {
+      toast.show(t("account.paydayInvalid"), "error");
+      return;
+    }
+    setSavingPayday(true);
+    try {
+      const res: any = await api.setPayday(value);
+      setUser(res.user);
+      setPaydayModal(false);
+      toast.show(t("account.paydaySaved"), "success");
+    } catch {
+      toast.show(t("account.errSavePayday"), "error");
+    } finally {
+      setSavingPayday(false);
     }
   };
 
@@ -592,6 +614,30 @@ export default function Account() {
         )}
       </View>
 
+      {/* Payday / siklus gajian */}
+      <Text style={styles.sectionLabel}>{t("account.paydaySection")}</Text>
+      <View style={styles.card}>
+        <Pressable
+          testID="payday-row"
+          style={styles.row}
+          onPress={() => {
+            setPaydayInput(user?.payday ? String(user.payday) : "");
+            setPaydayModal(true);
+          }}
+        >
+          <View style={styles.rowIcon}>
+            <MaterialCommunityIcons name="calendar-month-outline" size={20} color={colors.brand} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.rowTitle}>{t("account.paydayRowTitle")}</Text>
+            <Text style={styles.rowSub}>
+              {user?.payday ? t("account.paydayValue", { day: user.payday }) : t("account.paydayNotSet")}
+            </Text>
+          </View>
+          <MaterialCommunityIcons name="chevron-right" size={20} color={colors.borderStrong} />
+        </Pressable>
+      </View>
+
       {/* Language */}
       <Text style={styles.sectionLabel}>{t("account.languageSection")}</Text>
       <View style={styles.segment}>
@@ -784,6 +830,39 @@ export default function Account() {
               loading={savingLimit}
             />
             <Pressable style={styles.cancelBtn} onPress={() => setLimitModal(false)}>
+              <Text style={styles.cancelText}>{t("common.cancel")}</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* Payday modal */}
+      <Modal
+        visible={paydayModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setPaydayModal(false)}
+      >
+        <Pressable style={styles.backdrop} onPress={() => setPaydayModal(false)}>
+          <Pressable style={styles.modalCard} onPress={() => {}}>
+            <Text style={styles.modalTitle}>{t("account.paydayModalTitle")}</Text>
+            <Text style={styles.modalSub}>{t("account.paydayModalSub")}</Text>
+            <Input
+              testID="payday-input"
+              icon="calendar-month-outline"
+              placeholder={t("account.paydayPlaceholder")}
+              value={paydayInput}
+              onChangeText={setPaydayInput}
+              keyboardType="numeric"
+              autoFocus
+            />
+            <Button
+              testID="save-payday-button"
+              title={t("account.save")}
+              onPress={savePayday}
+              loading={savingPayday}
+            />
+            <Pressable style={styles.cancelBtn} onPress={() => setPaydayModal(false)}>
               <Text style={styles.cancelText}>{t("common.cancel")}</Text>
             </Pressable>
           </Pressable>

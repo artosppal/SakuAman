@@ -100,6 +100,9 @@ export const api = {
     apiFetch("/auth/phone/verify/confirm", { method: "POST", body: JSON.stringify({ code }) }),
   updateLimit: (monthly_limit: number | null) =>
     apiFetch("/auth/limit", { method: "PUT", body: JSON.stringify({ monthly_limit }) }),
+  setPayday: (payday: number) =>
+    apiFetch("/auth/payday", { method: "PUT", body: JSON.stringify({ payday }) }),
+  sakuAman: () => apiFetch("/saku-aman"),
   changePassword: (body: { current_password?: string | null; new_password: string }) =>
     apiFetch("/auth/password", { method: "PUT", body: JSON.stringify(body) }),
   forgotPassword: (email: string) =>
