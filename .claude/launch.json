@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "frontend", "run", "web"],
       "port": 8081
+    },
+    {
+      "name": "backend-api",
+      "runtimeExecutable": "backend/venv/Scripts/uvicorn.exe",
+      "runtimeArgs": ["server:app", "--reload", "--host", "0.0.0.0", "--port", "8000", "--app-dir", "backend"],
+      "port": 8000
     }
   ]
 }

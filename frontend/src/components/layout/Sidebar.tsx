@@ -48,6 +48,14 @@ const NAV_ITEMS = [
     activeIcon: "piggy-bank",
     labelKey: "goals.navLabel",
   },
+  {
+    href: "/arisan",
+    match: "/arisan",
+    icon: "sync-circle",
+    activeIcon: "sync-circle",
+    labelKey: "arisan.navLabel",
+    requiresArisan: true,
+  },
   { href: "/account", match: "/account", icon: "account-outline", activeIcon: "account", labelKey: "tabs.account" },
 ] as const;
 
@@ -132,12 +140,12 @@ export function Sidebar() {
       <View style={styles.divider} />
 
       <View style={styles.nav}>
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !("requiresArisan" in item) || user?.arisan_enabled).map((item) => {
           const active = pathname === item.match;
           return (
             <Pressable
               key={item.href}
-              testID={`sidebar-nav-${item.labelKey.split(".")[1]}`}
+              testID={`sidebar-nav-${item.href.slice(1) || "home"}`}
               onPress={() => router.push(item.href as any)}
               style={[styles.navItem, collapsed && styles.navItemCollapsed, active && styles.navItemActive]}
             >

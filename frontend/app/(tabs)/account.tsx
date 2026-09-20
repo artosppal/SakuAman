@@ -692,6 +692,19 @@ export default function Account() {
           <MaterialCommunityIcons name="piggy-bank-outline" size={20} color={colors.muted} />
           <Text style={styles.actionText}>{t("account.goalsAction")}</Text>
         </Pressable>
+        {user?.arisan_enabled && (
+          <>
+            <View style={styles.divider} />
+            <Pressable
+              testID="arisan-button"
+              style={styles.actionRow}
+              onPress={() => router.push("/arisan")}
+            >
+              <MaterialCommunityIcons name="sync-circle" size={20} color={colors.muted} />
+              <Text style={styles.actionText}>{t("account.arisanAction")}</Text>
+            </Pressable>
+          </>
+        )}
         <View style={styles.divider} />
         {isPremium && !user?.cancel_at_period_end && (
           <>

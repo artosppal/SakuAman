@@ -33,6 +33,7 @@ export interface User {
   has_password?: boolean;
   referral_code?: string | null;
   payday?: number | null;
+  arisan_enabled?: boolean;
 }
 
 interface AuthState {

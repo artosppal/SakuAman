@@ -84,7 +84,7 @@ Kode SakuAman berawal dari **Notifin** (subscription tracker — di-scaffold di 
 - Rebranding: ~~landing copy~~, ~~copy `/pricing` + `/faq` standalone~~ — **selesai** (Langkah 6, lihat di bawah). Warna/logo sudah dari "Rebrand tampilan". Sisa: ganti/isi ulang konten blog (4 artikel masih bahas subscription tracker).
 - ~~Perluas model data dari "subscriptions" jadi konsep tagihan/kewajiban yang lebih umum~~ — **selesai** (Langkah 5). UI untuk field baru (`type` selain subscription, `end_date`, tandai-lunas-per-periode) belum ada.
 - ~~Anggaran & catat transaksi~~ — **selesai** (Langkah 5). Kategori pengeluaran rumah tangga (`expenseCategories.ts`) masih terpisah dari kategori langganan (`categories.ts`) — belum disatukan/dipikirkan ulang sebagai satu taksonomi.
-- ~~Fitur inti v1 sisanya: proyeksi "Saku Aman", Siklus Gajian custom, Tabungan & Goals~~ — **semua selesai** (Langkah 5). Yang masih tersisa dari daftar semula: modul Arisan (feature-flagged, default off) — skema lengkap di `docs/DATA_MODEL.md`, belum ada endpoint/UI.
+- ~~Fitur inti v1 sisanya: proyeksi "Saku Aman", Siklus Gajian custom, Tabungan & Goals~~ — **semua selesai** (Langkah 5). ~~Modul Arisan~~ — **selesai** (Langkah 7, lihat di bawah). Semua fitur inti v1 (termasuk Arisan) sudah ada endpoint + UI.
 - Redesain sistem grup existing jadi "berbagi rumah tangga".
 - Redesain dashboard ke arah Saku Aman (sisa uang aman + proyeksi habis), bukan cuma total pengeluaran — sekarang total pengeluaran masih dihitung dari `obligations`, belum digabung dengan `transactions`.
 
@@ -132,6 +132,39 @@ di halaman pricing. Diverifikasi manual di browser.
 subscription tracker — konten yang jauh lebih besar/perlu ditulis ulang dari nol, bukan cuma tweak
 istilah seperti landing/pricing/faq.
 
+## Langkah 7 — modul Arisan (selesai, 2026-09-21)
+Item terakhir yang tersisa dari fitur inti v1 (skema sudah didesain di `docs/DATA_MODEL.md` §1/§6/§7
+#6, belum ada baris kode) — sekarang endpoint + UI lengkap, tetap **feature-flagged off by default**.
+
+- **Backend**: koleksi baru `arisan_groups` + `arisan_contributions` (`backend/server.py`, blok
+  "Arisan" setelah Groups). Endpoint: `POST/GET /arisan`, `POST /arisan/join`, `GET /arisan/{id}`,
+  `POST /arisan/{id}/participants` (koordinator tambah anggota offline tanpa akun — sesuai desain
+  `user_id?` opsional di skema), `POST /arisan/{id}/leave`, `DELETE /arisan/{id}`,
+  `POST /arisan/{id}/contribute` (tandai setor per periode per anggota), `POST /arisan/{id}/draw`
+  (undi pemenang round-robin sesuai urutan gabung, bukan acak). Bikin arisan = Premium-only
+  (`PLANS[plan]["arisan_can_create"]`, sudah ada dari Langkah 5), join = semua plan — pola sama grup.
+- **Kill-switch**: `ARISAN_FEATURE_ENABLED` di `server.py`, dibaca dari env var (default `false` kalau
+  env var kosong) — **bukan** diubah langsung di kode. Semua endpoint `/arisan*` balik 404 kalau flag
+  mati, apa pun plan user. Untuk testing lokal: `ARISAN_FEATURE_ENABLED=true` sebelum start uvicorn.
+  `/auth/me` (dan semua respons `public_user`) sekarang balikin field `arisan_enabled` biar frontend
+  tahu harus nampilin entry point Arisan atau tidak — bukan cuma API yang di-gate, UI-nya juga
+  sengaja disembunyikan (tab tersembunyi, baris Account, item sidebar) selama flag mati.
+- **Test**: `backend/tests/test_notifin_arisan.py` (baru, 24 test — 23 lulus + 1 skip saat flag
+  nyala, 2 lulus + 22 skip terkontrol saat flag mati/default). Skip otomatis lewat
+  `pytest.mark.skipif` berdasarkan env var `ARISAN_FEATURE_ENABLED` yang dibaca test file itu sendiri,
+  biar suite tetap hijau di kedua kondisi tanpa perlu dua file terpisah. 124 test backend total lulus
+  (termasuk suite lama) saat dijalankan dengan flag nyala.
+- **Frontend**: tab tersembunyi `/arisan` (pola sama `goals`, `href: null` — dijangkau dari baris
+  "Arisan" di Account dan item sidebar desktop, keduanya **kondisional** ke `user.arisan_enabled`).
+  Layar list `app/(tabs)/arisan.tsx` (create/join modal, mirror `groups.tsx`) + detail
+  `app/arisan/[id].tsx` (kode undangan, daftar anggota dengan toggle status setor, tombol "Tambah
+  Anggota" offline, tombol undi pemenang dengan pola konfirmasi tap-dua-kali, banner selesai kalau
+  semua sudah pernah menang, hapus/keluar arisan).
+- Diverifikasi manual end-to-end di browser (bukan cuma pytest): daftar user baru → upgrade Premium
+  (simulate-mayar-webhook) → buat arisan → toggle status setor → tambah anggota offline "Bu Siti" →
+  undi 2x (round-robin, banner selesai muncul di undian ke-2) → hapus arisan. Juga diverifikasi flag
+  mati (default) balikin 404 di backend dan **menyembunyikan** item Arisan dari sidebar + Account.
+
 ## Pending user inputs / build notes
 - `FONNTE_TOKEN`, `RESEND_API_KEY`/`EMAIL_FROM`, `MAYAR_*` masih kosong di production Railway → semua integrasi eksternal jalan mode simulasi. Isi kalau mau live.
 - Push ke Expo Push Notification Service butuh EAS project id di `app.json` (`extra.eas.projectId`) buat dapat token asli — belum ada EAS project.
@@ -139,5 +172,55 @@ istilah seperti landing/pricing/faq.
 - `REFERRAL_REWARD_DAYS` (30 hari) itu constant di `server.py` — ubah di situ kalau reward mau beda.
 - Local dev: kalau buka shell baru, `EXPO_PUBLIC_BACKEND_URL` harus di-export manual (`export EXPO_PUBLIC_BACKEND_URL=http://localhost:8000`) sebelum `pytest` di `backend/` — kalau tidak, test diam-diam nyasar ke URL Emergent preview lama dan semua gagal dengan pesan yang membingungkan (`KeyError: 'dev_code'`).
 
+## Checklist konsolidasi (2026-09-20)
+Dibuat karena user melaporkan **login/registrasi belum bisa** — investigasi (browser test langsung ke
+`sakuaman.vercel.app` + fetch langsung ke `sakuaman-backend-production.up.railway.app`) menemukan akar
+masalahnya: `RESEND_API_KEY`/`EMAIL_FROM` dan `FONNTE_TOKEN` masih kosong di Railway production, jadi
+endpoint register/login OTP balik `dev_code` di response (bukan benar-benar kirim email/WA) — user tidak
+pernah menerima kode. Google OAuth juga gagal karena `GOOGLE_CLIENT_ID`/`SECRET` kosong. Checklist ini
+merangkum status semua bagian biar gampang lihat progress dan yang masih kurang.
+
+**Fase 0–4 — Fondasi (setup & deploy)**
+- [x] Fase 0: Checkpoint Notifin → repo GitHub baru (history bersih, terpisah dari `Emergent-App`)
+- [x] Fase 1: Environment lokal jalan, test lulus
+- [x] Fase 2: Integrasi khusus-Emergent diganti native
+- [x] Fase 3: Lanjut development pakai Claude Code
+- [x] Fase 4: Deploy — Vercel (`sakuaman.vercel.app`) + Railway (`sakuaman-backend-production`) + MongoDB Atlas (`sakuaman_prod`)
+- [ ] **`GOOGLE_CLIENT_ID`/`SECRET` di Railway** — kosong → tombol "Lanjutkan dengan Google" gagal
+- [ ] **`RESEND_API_KEY`/`EMAIL_FROM` di Railway** — kosong → kode verifikasi email tidak terkirim (blocker login yang dilaporkan user)
+- [ ] **`FONNTE_TOKEN` di Railway** — kosong → kode verifikasi WhatsApp tidak terkirim, reminder H-3/H-1/H-0 belum jalan
+- [ ] **`MAYAR_API_KEY`/`PRODUCT_ID`/`TIER_ID`/`RETENTION_*`/`WEBHOOK_SECRET` di Railway** — kosong → upgrade ke Premium akan 503
+- [ ] Domain `sakuaman.id` — belum didaftarkan, baru placeholder di footer/terms (`support@sakuaman.id`)
+- [ ] EAS project id (`app.json` `extra.eas.projectId`) — belum ada, push notification belum dapat token asli
+
+**Langkah 5 — Fitur inti v1**
+- [x] Obligations (ganti total dari "subscriptions")
+- [x] Transactions + Budgets
+- [x] Saku Aman + Siklus Gajian custom
+- [x] Tabungan & Goals
+- [x] Arisan — endpoint + UI selesai (Langkah 7), tetap feature-flagged off by default lewat `ARISAN_FEATURE_ENABLED`
+
+**Langkah 6 — Rebranding**
+- [x] Nama app, logo, icon/favicon/splash
+- [x] Copy landing page
+- [x] Copy `/pricing` + `/faq`
+- [ ] Warna brand — masih hijau `#059669` warisan Notifin (keputusan sadar, bisa direvisit)
+- [ ] 4 artikel blog — masih 100% bahas "subscription tracker", belum ditulis ulang
+
+**Langkah 7 — Modul Arisan**
+- [x] Backend: `arisan_groups`/`arisan_contributions`, CRUD + join + contribute + draw, kill-switch env-based
+- [x] Frontend: tab tersembunyi, layar list + detail, kondisional ke `user.arisan_enabled`
+- [x] Test: `test_notifin_arisan.py` (24 test) + verifikasi manual end-to-end di browser
+- [ ] Nyalakan `ARISAN_FEATURE_ENABLED=true` di Railway kapan pun siap rilis ke user asli (masih off — keputusan produk, bukan item teknis yang kurang)
+
+**Belum masuk daftar sebelumnya — perlu diputuskan**
+- [ ] UI untuk field baru obligation (pilih `type` selain langganan, `end_date`, tombol "tandai lunas") — endpoint `PUT /obligations/{id}/pay` sudah ada, belum dipanggil dari layar manapun
+- [ ] Sistem grup — masih berbahasa "patungan langganan teman", belum di-reframe jadi "berbagi rumah tangga"
+- [ ] Kategori pengeluaran (`categories.ts` vs `expenseCategories.ts`) — masih 2 taksonomi terpisah
+- [ ] Dashboard — total pengeluaran masih dihitung dari `obligations` saja, belum digabung `transactions`
+- [ ] Putuskan buang/reframe: preset 16 layanan streaming, "sorotan boros" (trial berakhir), promo recommendations — semua warisan konsep Notifin, kurang relevan buat SakuAman
+- [ ] `bundleIdentifier`/`package` di `app.json` masih `com.notifin.app` — tidak urgent selama web-only
+- [ ] Console error pre-existing di navigator (auto-recover, tidak berdampak fungsional) — task terpisah, belum diperbaiki
+
 ## Next Tasks
-Fase 0–4 selesai (checkpoint kerja lokal + production deploy terverifikasi). Langkah 5 — semua slice fitur inti v1 selesai (obligations, transactions+budgets, Saku Aman+payday, Tabungan & Goals). Yang tersisa sebelum v1 benar-benar lengkap: modul Arisan (opsional, feature-flagged off by default — bisa ditunda). Kandidat berikutnya yang paling masuk akal: **redesign landing page** dengan hero "Saku Aman" (sekarang tidak lagi diblokir, semua fitur yang mau di-highlight sudah ada) — atau lanjut ke Arisan kalau user mau lengkapi dulu semua fitur v1.
+Fase 0–4 selesai (checkpoint kerja lokal + production deploy terverifikasi). Langkah 5 — semua slice fitur inti v1 selesai (obligations, transactions+budgets, Saku Aman+payday, Tabungan & Goals). Langkah 7 — modul Arisan selesai (endpoint + UI + test), tetap off by default lewat env var. Prioritas mendesak sekarang: **isi env var integrasi eksternal di Railway** (`RESEND_API_KEY`/`EMAIL_FROM`, `FONNTE_TOKEN`, `GOOGLE_CLIENT_ID`/`SECRET`) — ini yang bikin login/registrasi belum bisa dipakai user nyata, butuh Anda sendiri yang isi API key-nya di dashboard Railway. Setelah itu tinggal item-item di "Belum masuk daftar sebelumnya" di atas (UI field obligation baru, redesign grup, unifikasi kategori, dashboard gabungan) — semuanya kerja kode murni, bisa dilanjutkan tanpa perlu secret tambahan.

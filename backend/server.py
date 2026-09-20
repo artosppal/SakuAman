@@ -72,6 +72,11 @@ PLANS = {
 }
 FREE_PLAN_LIMIT = PLANS["free"]["max_obligations_active"]  # dipakai di /dashboard's free_limit
 REFERRAL_REWARD_DAYS = 30  # granted to the referrer once their referee becomes Premium
+
+# Kill-switch global buat modul Arisan — endpoint /arisan* 404 kalau False,
+# apa pun plan-nya (docs/DATA_MODEL.md §6/§7 #6). Default off; nyalakan lewat
+# env var (termasuk buat testing lokal), bukan dengan mengubah baris ini.
+ARISAN_FEATURE_ENABLED = os.environ.get("ARISAN_FEATURE_ENABLED", "false").strip().lower() == "true"
 APP_URL = "https://sakuaman.vercel.app"  # appended to outgoing reminder/invite WhatsApp messages for easy access
 
 # WhatsApp via Fonnte (simulation mode while token is empty)
@@ -222,6 +227,7 @@ def public_user(u: dict) -> dict:
         "has_password": bool(u.get("password_hash")),
         "referral_code": u.get("referral_code"),
         "payday": u.get("payday"),
+        "arisan_enabled": ARISAN_FEATURE_ENABLED,
     }
 
 
@@ -2538,6 +2544,241 @@ async def pay_group_sub(gid: str, sid: str, body: PayBody,
     await db.group_subscriptions.update_one(
         {"id": sid}, {"$set": {f"payments.{period}.{target}": body.paid}})
     return {"status": "ok", "period": period, "user_id": target, "paid": body.paid}
+
+
+# ---------------------------------------------------------------------------
+# Arisan — rotating savings group, feature-flagged off by default
+# (docs/DATA_MODEL.md §1/§6/§7 #6). Schema mirrors groups/group_subscriptions
+# above (owner, invite code, join-by-code) since the mechanics are the same
+# shape; `arisan_contributions` follows the same per-period-per-member status
+# pattern as obligations' `period_status`. Bikin arisan = Premium-only
+# (`PLANS[plan]["arisan_can_create"]`), join = semua plan, sama seperti grup.
+# ---------------------------------------------------------------------------
+ARISAN_CYCLES = {"weekly", "monthly"}
+
+
+def require_arisan_enabled():
+    if not ARISAN_FEATURE_ENABLED:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+
+class ArisanBody(BaseModel):
+    name: str
+    contribution_amount: float
+    cycle: str = "monthly"          # weekly | monthly
+
+
+class ArisanParticipantBody(BaseModel):
+    name: str                       # anggota offline tanpa akun (mis. tetangga/saudara)
+
+
+class ArisanContributeBody(BaseModel):
+    period: str                     # "YYYY-MM" (monthly) atau "YYYY-Www" (weekly)
+    user_id: Optional[str] = None   # default: diri sendiri; koordinator boleh isi buat anggota lain
+    paid: bool = True
+
+
+def arisan_period_key(cycle: str, d: Optional[date] = None) -> str:
+    d = d or date.today()
+    if cycle == "weekly":
+        year, week, _ = d.isocalendar()
+        return f"{year}-W{week:02d}"
+    return d.strftime("%Y-%m")
+
+
+def arisan_public(a: dict) -> dict:
+    return {
+        "id": a["id"],
+        "name": a.get("name"),
+        "owner_id": a.get("owner_id"),
+        "invite_code": a.get("invite_code"),
+        "contribution_amount": a.get("contribution_amount", 0),
+        "cycle": a.get("cycle", "monthly"),
+        "participants": a.get("participants", []),
+        "current_turn": a.get("current_turn", 0),
+        "created_at": a.get("created_at"),
+    }
+
+
+async def get_arisan_for_member(aid: str, user_id: str) -> dict:
+    a = await db.arisan_groups.find_one({"id": aid}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Arisan tidak ditemukan")
+    if not any(p.get("user_id") == user_id for p in a.get("participants", [])):
+        raise HTTPException(status_code=403, detail="Kamu bukan anggota arisan ini")
+    return a
+
+
+@api_router.post("/arisan")
+async def create_arisan(body: ArisanBody, user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    plan_cfg = PLANS.get(user.get("plan", "free"), PLANS["free"])
+    if not plan_cfg.get("arisan_can_create"):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "premium_required",
+                    "message": "Buat arisan adalah fitur Premium. Semua orang tetap bisa gabung lewat kode."},
+        )
+    if not body.name.strip():
+        raise HTTPException(status_code=422, detail="Nama arisan wajib diisi")
+    if body.cycle not in ARISAN_CYCLES:
+        raise HTTPException(status_code=422, detail="Siklus arisan tidak dikenal")
+    if body.contribution_amount <= 0:
+        raise HTTPException(status_code=422, detail="Nominal setoran harus lebih dari 0")
+    code = gen_invite_code()
+    for _ in range(5):
+        if not await db.arisan_groups.find_one({"invite_code": code}):
+            break
+        code = gen_invite_code()
+    doc = {
+        "id": str(uuid.uuid4()),
+        "name": body.name.strip(),
+        "owner_id": user["user_id"],
+        "invite_code": code,
+        "contribution_amount": body.contribution_amount,
+        "cycle": body.cycle,
+        "participants": [{"user_id": user["user_id"], "name": user.get("name"),
+                          "order": 0, "has_won": False,
+                          "joined_at": now_utc().isoformat()}],
+        "current_turn": 0,
+        "created_at": now_utc().isoformat(),
+    }
+    await db.arisan_groups.insert_one(doc)
+    return {"arisan": arisan_public(doc)}
+
+
+@api_router.get("/arisan")
+async def list_arisan(user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    docs = await db.arisan_groups.find(
+        {"participants.user_id": user["user_id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    return {"arisan": [arisan_public(d) for d in docs]}
+
+
+@api_router.post("/arisan/join")
+async def join_arisan(body: JoinBody, user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    code = body.code.strip().upper()
+    a = await db.arisan_groups.find_one({"invite_code": code}, {"_id": 0})
+    if not a:
+        raise HTTPException(status_code=404, detail="Kode arisan tidak ditemukan")
+    if any(p.get("user_id") == user["user_id"] for p in a.get("participants", [])):
+        raise HTTPException(status_code=409, detail="Kamu sudah jadi anggota arisan ini")
+    order = len(a.get("participants", []))
+    await db.arisan_groups.update_one(
+        {"id": a["id"]},
+        {"$push": {"participants": {"user_id": user["user_id"], "name": user.get("name"),
+                                    "order": order, "has_won": False,
+                                    "joined_at": now_utc().isoformat()}}})
+    return {"status": "joined", "arisan_id": a["id"], "name": a["name"]}
+
+
+@api_router.get("/arisan/{aid}")
+async def arisan_detail(aid: str, user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    a = await get_arisan_for_member(aid, user["user_id"])
+    period = arisan_period_key(a.get("cycle", "monthly"))
+    contrib_doc = await db.arisan_contributions.find_one(
+        {"arisan_id": aid, "period": period}, {"_id": 0})
+    paid_map = (contrib_doc or {}).get("paid", {})
+    participants = [
+        {**p, "paid_this_period": paid_map.get(p["user_id"], False)}
+        for p in a.get("participants", [])
+    ]
+    return {"arisan": {**arisan_public(a), "participants": participants,
+                       "current_period": period}}
+
+
+@api_router.post("/arisan/{aid}/participants")
+async def add_arisan_participant(aid: str, body: ArisanParticipantBody,
+                                 user: dict = Depends(get_current_user)):
+    """Koordinator menambah anggota offline (tanpa akun SakuAman) secara manual
+    — arisan sehari-hari sering punya anggota yang tidak pakai aplikasi."""
+    require_arisan_enabled()
+    a = await get_arisan_for_member(aid, user["user_id"])
+    if a["owner_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Hanya koordinator yang bisa menambah anggota")
+    if not body.name.strip():
+        raise HTTPException(status_code=422, detail="Nama anggota wajib diisi")
+    order = len(a.get("participants", []))
+    await db.arisan_groups.update_one(
+        {"id": aid},
+        {"$push": {"participants": {"user_id": None, "name": body.name.strip(),
+                                    "order": order, "has_won": False,
+                                    "joined_at": now_utc().isoformat()}}})
+    updated = await db.arisan_groups.find_one({"id": aid}, {"_id": 0})
+    return {"arisan": arisan_public(updated)}
+
+
+@api_router.post("/arisan/{aid}/leave")
+async def leave_arisan(aid: str, user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    a = await get_arisan_for_member(aid, user["user_id"])
+    if a["owner_id"] == user["user_id"]:
+        raise HTTPException(status_code=400,
+                            detail="Koordinator tidak bisa keluar. Hapus arisan jika sudah tidak dipakai.")
+    await db.arisan_groups.update_one(
+        {"id": aid}, {"$pull": {"participants": {"user_id": user["user_id"]}}})
+    return {"status": "left"}
+
+
+@api_router.delete("/arisan/{aid}")
+async def delete_arisan(aid: str, user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    a = await get_arisan_for_member(aid, user["user_id"])
+    if a["owner_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Hanya koordinator yang bisa menghapus arisan")
+    await db.arisan_contributions.delete_many({"arisan_id": aid})
+    await db.arisan_groups.delete_one({"id": aid})
+    return {"status": "deleted"}
+
+
+@api_router.post("/arisan/{aid}/contribute")
+async def contribute_arisan(aid: str, body: ArisanContributeBody,
+                            user: dict = Depends(get_current_user)):
+    require_arisan_enabled()
+    a = await get_arisan_for_member(aid, user["user_id"])
+    target = body.user_id or user["user_id"]
+    if target != user["user_id"] and a["owner_id"] != user["user_id"]:
+        raise HTTPException(status_code=403,
+                            detail="Hanya koordinator yang bisa mengubah status setor anggota lain")
+    if not any(p.get("user_id") == target for p in a.get("participants", [])):
+        raise HTTPException(status_code=404, detail="Anggota tidak ditemukan")
+    await db.arisan_contributions.update_one(
+        {"arisan_id": aid, "period": body.period},
+        {"$set": {f"paid.{target}": body.paid, "updated_at": now_utc().isoformat()},
+         "$setOnInsert": {"id": str(uuid.uuid4()), "arisan_id": aid, "period": body.period,
+                          "created_at": now_utc().isoformat()}},
+        upsert=True,
+    )
+    return {"status": "ok", "period": body.period, "user_id": target, "paid": body.paid}
+
+
+@api_router.post("/arisan/{aid}/draw")
+async def draw_arisan(aid: str, user: dict = Depends(get_current_user)):
+    """Koordinator mengundi pemenang periode berjalan: anggota berikutnya yang
+    belum pernah menang, berurutan sesuai `order` (round-robin, bukan acak —
+    arisan biasanya sudah sepakat urutan di muka)."""
+    require_arisan_enabled()
+    a = await get_arisan_for_member(aid, user["user_id"])
+    if a["owner_id"] != user["user_id"]:
+        raise HTTPException(status_code=403, detail="Hanya koordinator yang bisa mengundi arisan")
+    participants = sorted(a.get("participants", []), key=lambda p: p.get("order", 0))
+    remaining = [p for p in participants if not p.get("has_won")]
+    if not remaining:
+        raise HTTPException(status_code=400,
+                            detail="Semua anggota sudah menang, arisan ini sudah selesai")
+    winner = remaining[0]
+    await db.arisan_groups.update_one(
+        {"id": aid, "participants.order": winner["order"]},
+        {"$set": {"participants.$.has_won": True,
+                  "participants.$.won_at": now_utc().isoformat(),
+                  "current_turn": a.get("current_turn", 0) + 1}},
+    )
+    updated = await db.arisan_groups.find_one({"id": aid}, {"_id": 0})
+    return {"arisan": arisan_public(updated),
+            "winner": {"user_id": winner.get("user_id"), "name": winner.get("name")}}
 
 
 # ---------------------------------------------------------------------------
@@ -5160,6 +5401,11 @@ async def startup():
         await db.referrals.create_index("id", unique=True)
         await db.referrals.create_index("referrer_user_id")
         await db.referrals.create_index("referee_user_id", unique=True)
+        await db.arisan_groups.create_index("id", unique=True)
+        await db.arisan_groups.create_index("invite_code", unique=True)
+        await db.arisan_groups.create_index("participants.user_id")
+        await db.arisan_contributions.create_index(
+            [("arisan_id", 1), ("period", 1)], unique=True)
     except Exception as e:
         logger.warning(f"index creation: {e}")
 
@@ -5208,6 +5454,9 @@ app.add_middleware(
         # only reachable from someone's own machine.
         "http://localhost:8081",
         "http://localhost:19006",
+        # LAN access for testing from a phone on the same network — temporary
+        # dev convenience, remove if the dev machine's IP changes.
+        "http://192.168.100.35:8081",
     ],
     allow_methods=["*"],
     allow_headers=["*"],

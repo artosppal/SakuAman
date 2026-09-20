@@ -120,6 +120,10 @@ export default function TabsLayout() {
           rather than cramming in a 6th icon, but still lives in this group
           so it shares the same layout/back-stack as the other tab screens. */}
       <Tabs.Screen name="goals" options={{ href: null }} />
+      {/* Same pattern as goals above — off the bottom tab bar, reachable via
+          the Account screen's "Arisan" row (and the desktop sidebar) when
+          the feature flag is on (docs/DATA_MODEL.md §6). */}
+      <Tabs.Screen name="arisan" options={{ href: null }} />
     </Tabs>
   );
 }

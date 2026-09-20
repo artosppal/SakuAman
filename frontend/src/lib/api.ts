@@ -194,6 +194,20 @@ export const api = {
     }),
   groupHistory: (gid: string) => apiFetch(`/groups/${gid}/history`),
 
+  listArisan: () => apiFetch("/arisan"),
+  createArisan: (body: { name: string; contribution_amount: number; cycle: "weekly" | "monthly" }) =>
+    apiFetch("/arisan", { method: "POST", body: JSON.stringify(body) }),
+  joinArisan: (code: string) =>
+    apiFetch("/arisan/join", { method: "POST", body: JSON.stringify({ code }) }),
+  getArisan: (id: string) => apiFetch(`/arisan/${id}`),
+  addArisanParticipant: (id: string, name: string) =>
+    apiFetch(`/arisan/${id}/participants`, { method: "POST", body: JSON.stringify({ name }) }),
+  leaveArisan: (id: string) => apiFetch(`/arisan/${id}/leave`, { method: "POST" }),
+  deleteArisan: (id: string) => apiFetch(`/arisan/${id}`, { method: "DELETE" }),
+  contributeArisan: (id: string, body: { period: string; user_id?: string; paid: boolean }) =>
+    apiFetch(`/arisan/${id}/contribute`, { method: "POST", body: JSON.stringify(body) }),
+  drawArisan: (id: string) => apiFetch(`/arisan/${id}/draw`, { method: "POST" }),
+
   registerPush: (body: { user_id: string; platform: string; device_token: string }) =>
     apiFetch("/register-push", { method: "POST", body: JSON.stringify(body) }),
 };
