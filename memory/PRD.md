@@ -81,7 +81,7 @@ Kode SakuAman berawal dari **Notifin** (subscription tracker — di-scaffold di 
 - `backend/tests/` — 66 test, semua lulus (`pytest` dari `backend/`, `pytest.ini` sudah benar pakai `--dist loadgroup`).
 
 ## Backlog (SakuAman — belum dikerjakan)
-- Rebranding: ~~landing copy~~ — **selesai** (Langkah 6, lihat di bawah). Warna/logo sudah dari "Rebrand tampilan". Sisa: ganti/isi ulang konten blog (4 artikel masih bahas subscription tracker), copy `/pricing` standalone dan `/faq` standalone (masih "langganan"-flavored, belum ikut di-rewrite Langkah 6).
+- Rebranding: ~~landing copy~~, ~~copy `/pricing` + `/faq` standalone~~ — **selesai** (Langkah 6, lihat di bawah). Warna/logo sudah dari "Rebrand tampilan". Sisa: ganti/isi ulang konten blog (4 artikel masih bahas subscription tracker).
 - ~~Perluas model data dari "subscriptions" jadi konsep tagihan/kewajiban yang lebih umum~~ — **selesai** (Langkah 5). UI untuk field baru (`type` selain subscription, `end_date`, tandai-lunas-per-periode) belum ada.
 - ~~Anggaran & catat transaksi~~ — **selesai** (Langkah 5). Kategori pengeluaran rumah tangga (`expenseCategories.ts`) masih terpisah dari kategori langganan (`categories.ts`) — belum disatukan/dipikirkan ulang sebagai satu taksonomi.
 - ~~Fitur inti v1 sisanya: proyeksi "Saku Aman", Siklus Gajian custom, Tabungan & Goals~~ — **semua selesai** (Langkah 5). Yang masih tersisa dari daftar semula: modul Arisan (feature-flagged, default off) — skema lengkap di `docs/DATA_MODEL.md`, belum ada endpoint/UI.
@@ -120,10 +120,17 @@ kartu asli di dashboard) + daftar jatuh tempo kewajiban rumah tangga (listrik/ci
 anggaran bulan ini. Icon 3 kartu fitur disesuaikan (shield-check/bell-ring/piggy-bank). Diverifikasi
 manual di browser (mobile + desktop width), teks dan visual sudah sesuai.
 
-**Sengaja di luar scope Langkah 6** (bukan lupa): `/pricing` standalone page dan `/faq` standalone page
-(`pricingPage.*`) masih penuh istilah "langganan" (rowSubs, dst) — surface terpisah dari landing utama,
-belum disentuh. 4 artikel blog (`src/content/blog.ts`) juga belum diganti, masih bahas subscription
-tracker. Keduanya kandidat lanjutan kalau mau benar-benar tuntas rebrand copy.
+**Lanjutan (selesai, 2026-09-20)**: copy `/pricing` + `/faq` standalone (`pricingPage.*`, id+en) juga
+ditulis ulang — "langganan" → "kewajiban" di title/subtitle/tabel perbandingan/FAQ. Sekalian ketauan dan
+dibenerin bug lama: baris "Jumlah kewajiban aktif" versi Indonesia masih bilang "Maks. 3" (limit lama
+sebelum Langkah 5 naikin ke 8) padahal versi Inggris sudah benar "Up to 8" — sekarang keduanya konsisten
+8. Nambah 1 baris baru di tabel perbandingan: "Jumlah goal tabungan aktif" (Maks. 3 Free / Tanpa batas
+Premium, sesuai `PLANS["free"]["max_goals_active"]`) — sebelumnya fitur Goals nggak muncul sama sekali
+di halaman pricing. Diverifikasi manual di browser.
+
+**Masih di luar scope** (bukan lupa): 4 artikel blog (`src/content/blog.ts`) belum diganti, masih bahas
+subscription tracker — konten yang jauh lebih besar/perlu ditulis ulang dari nol, bukan cuma tweak
+istilah seperti landing/pricing/faq.
 
 ## Pending user inputs / build notes
 - `FONNTE_TOKEN`, `RESEND_API_KEY`/`EMAIL_FROM`, `MAYAR_*` masih kosong di production Railway → semua integrasi eksternal jalan mode simulasi. Isi kalau mau live.
