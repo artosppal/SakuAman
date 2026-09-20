@@ -328,7 +328,7 @@ class TestReminderSweep:
             })
             tomorrow = (date.today() + timedelta(days=1)).isoformat()
             sub_id = str(uuid.uuid4())
-            await _db.subscriptions.insert_one({
+            await _db.obligations.insert_one({
                 "id": sub_id, "user_id": uid,
                 "name": "TEST_F3_SweepNetflix", "category": "entertainment",
                 "price": 65000, "billing_cycle": "monthly",
@@ -343,7 +343,7 @@ class TestReminderSweep:
             await reminder_sweep()
             second = await _db.wa_outbox.count_documents({"phone": phone})
             rec = await _db.wa_outbox.find_one({"phone": phone}, {"_id": 0})
-            await _db.subscriptions.delete_one({"id": sub_id})
+            await _db.obligations.delete_one({"id": sub_id})
             await _db.users.delete_one({"user_id": uid})
             return first, second, rec
 

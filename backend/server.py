@@ -53,8 +53,24 @@ GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
 GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
 
-FREE_PLAN_LIMIT = 3
 FREE_WA_NOTIF_LIMIT = 5  # WhatsApp reminders per calendar month on the Free plan; Premium is unlimited.
+
+# Freemium plan config — see docs/DATA_MODEL.md §6/§7 for the reasoning behind these numbers.
+PLANS = {
+    "free": {
+        "max_obligations_active": 8,
+        "max_goals_active": 3,
+        "wa_notif_quota_per_month": FREE_WA_NOTIF_LIMIT,
+        "arisan_can_create": False,   # join tetap boleh, semua plan (pola sama seperti grup)
+    },
+    "premium": {
+        "max_obligations_active": None,
+        "max_goals_active": None,
+        "wa_notif_quota_per_month": None,
+        "arisan_can_create": True,
+    },
+}
+FREE_PLAN_LIMIT = PLANS["free"]["max_obligations_active"]  # dipakai di /dashboard's free_limit
 REFERRAL_REWARD_DAYS = 30  # granted to the referrer once their referee becomes Premium
 APP_URL = "https://notifin.online"  # appended to outgoing reminder/invite WhatsApp messages for easy access
 
@@ -421,17 +437,27 @@ class GoogleAuthBody(BaseModel):
     code_verifier: Optional[str] = None
 
 
-class SubscriptionBody(BaseModel):
+OBLIGATION_TYPES = {"subscription", "recurring_bill", "installment", "dues", "tuition", "other"}
+
+
+class ObligationBody(BaseModel):
     name: str
+    type: str = "subscription"              # subscription | recurring_bill | installment | dues | tuition | other
     category: str = "other"
     price: float = 0
     billing_cycle: str = "monthly"          # monthly | yearly | weekly
     next_due_date: str                      # YYYY-MM-DD
-    status: str = "paid"                    # trial | paid
+    end_date: Optional[str] = None          # tenggat cicilan/iuran bertenor tetap; None = jalan terus
+    status: str = "paid"                    # trial | paid (relevan terutama utk type=subscription)
     color: Optional[str] = None
     reminders: List[int] = Field(default_factory=lambda: [3, 1, 0])
     notes: Optional[str] = None
     registered_with: Optional[str] = None   # email/akun/no. HP dipakai daftar (opsional)
+
+
+class ObligationPayBody(BaseModel):
+    period: str                             # "YYYY-MM"
+    amount_paid: Optional[float] = None     # default ke `price` kalau tidak diisi
 
 
 class RegisterPushBody(BaseModel):
@@ -1296,21 +1322,25 @@ async def referral_me(user: dict = Depends(get_current_user)):
 
 
 # ---------------------------------------------------------------------------
-# Subscriptions
+# Obligations (kewajiban/tagihan — subscription, tagihan rutin, cicilan,
+# iuran, SPP, dll; menggantikan `subscriptions`, lihat docs/DATA_MODEL.md)
 # ---------------------------------------------------------------------------
 def sub_public(s: dict) -> dict:
     return {
         "id": s["id"],
         "name": s["name"],
+        "type": s.get("type", "subscription"),
         "category": s.get("category", "other"),
         "price": s.get("price", 0),
         "billing_cycle": s.get("billing_cycle", "monthly"),
         "next_due_date": s.get("next_due_date"),
+        "end_date": s.get("end_date"),
         "status": s.get("status", "paid"),
         "color": s.get("color"),
         "reminders": s.get("reminders", [3, 1, 0]),
         "notes": s.get("notes"),
         "registered_with": s.get("registered_with"),
+        "period_status": s.get("period_status", {}),
         "created_at": s.get("created_at"),
     }
 
@@ -1326,7 +1356,7 @@ def monthly_cost(s: dict) -> float:
 
 
 async def active_count(user_id: str) -> int:
-    return await db.subscriptions.count_documents(
+    return await db.obligations.count_documents(
         {"user_id": user_id, "deleted_at": None}
     )
 
@@ -1334,12 +1364,12 @@ async def active_count(user_id: str) -> int:
 async def ensure_distinct_registered_with(
     user_id: str, name: str, registered_with: Optional[str], exclude_id: Optional[str] = None,
 ):
-    """Kalau ada langganan lain dengan nama sama (case-insensitive), wajib isi
+    """Kalau ada kewajiban lain dengan nama sama (case-insensitive), wajib isi
     `registered_with` yang berbeda supaya keduanya bisa dibedakan."""
     q: dict = {"user_id": user_id, "deleted_at": None}
     if exclude_id:
         q["id"] = {"$ne": exclude_id}
-    existing = await db.subscriptions.find(q, {"_id": 0}).to_list(500)
+    existing = await db.obligations.find(q, {"_id": 0}).to_list(500)
     name_norm = name.strip().lower()
     dupes = [d for d in existing if (d.get("name") or "").strip().lower() == name_norm]
     if not dupes:
@@ -1348,7 +1378,7 @@ async def ensure_distinct_registered_with(
     if not rw:
         raise HTTPException(
             status_code=422,
-            detail=f'Sudah ada langganan "{name}" lain. Isi "Terdaftar dengan" biar bisa dibedakan.',
+            detail=f'Sudah ada "{name}" lain. Isi "Terdaftar dengan" biar bisa dibedakan.',
         )
     rw_norm = rw.lower()
     for d in dupes:
@@ -1356,14 +1386,15 @@ async def ensure_distinct_registered_with(
         if other_rw and other_rw == rw_norm:
             raise HTTPException(
                 status_code=422,
-                detail=f'Akun "{rw}" sudah dipakai untuk langganan "{name}" lainnya. Pakai akun yang berbeda.',
+                detail=f'Akun "{rw}" sudah dipakai untuk "{name}" lainnya. Pakai akun yang berbeda.',
             )
 
 
-@api_router.get("/subscriptions")
-async def list_subscriptions(
+@api_router.get("/obligations")
+async def list_obligations(
     category: Optional[str] = None,
     status: Optional[str] = None,
+    type: Optional[str] = None,
     user: dict = Depends(get_current_user),
 ):
     q: dict = {"user_id": user["user_id"], "deleted_at": None}
@@ -1371,65 +1402,118 @@ async def list_subscriptions(
         q["category"] = category
     if status and status != "all":
         q["status"] = status
-    docs = await db.subscriptions.find(q, {"_id": 0}).sort("next_due_date", 1).to_list(500)
-    return {"subscriptions": [sub_public(d) for d in docs]}
+    if type and type != "all":
+        q["type"] = type
+    docs = await db.obligations.find(q, {"_id": 0}).sort("next_due_date", 1).to_list(500)
+    return {"obligations": [sub_public(d) for d in docs]}
 
 
-@api_router.post("/subscriptions")
-async def create_subscription(body: SubscriptionBody, user: dict = Depends(get_current_user)):
+@api_router.post("/obligations")
+async def create_obligation(body: ObligationBody, user: dict = Depends(get_current_user)):
+    if body.type not in OBLIGATION_TYPES:
+        raise HTTPException(status_code=422, detail="Jenis kewajiban tidak dikenal")
     if user.get("plan", "free") == "free":
         count = await active_count(user["user_id"])
-        if count >= FREE_PLAN_LIMIT:
+        limit = PLANS["free"]["max_obligations_active"]
+        if count >= limit:
             raise HTTPException(
                 status_code=403,
                 detail={"code": "limit_reached",
-                        "message": f"Paket gratis maksimal {FREE_PLAN_LIMIT} langganan aktif."},
+                        "message": f"Paket gratis maksimal {limit} kewajiban aktif."},
             )
     await ensure_distinct_registered_with(user["user_id"], body.name, body.registered_with)
     doc = {
         "id": str(uuid.uuid4()),
         "user_id": user["user_id"],
         **body.model_dump(),
+        "period_status": {},
         "deleted_at": None,
         "created_at": now_utc().isoformat(),
         "updated_at": now_utc().isoformat(),
     }
-    await db.subscriptions.insert_one(doc)
-    return {"subscription": sub_public(doc)}
+    await db.obligations.insert_one(doc)
+    return {"obligation": sub_public(doc)}
 
 
-@api_router.get("/subscriptions/{sub_id}")
-async def get_subscription(sub_id: str, user: dict = Depends(get_current_user)):
-    doc = await db.subscriptions.find_one(
+@api_router.get("/obligations/{sub_id}")
+async def get_obligation(sub_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.obligations.find_one(
         {"id": sub_id, "user_id": user["user_id"], "deleted_at": None}, {"_id": 0})
     if not doc:
-        raise HTTPException(status_code=404, detail="Langganan tidak ditemukan")
-    return {"subscription": sub_public(doc)}
+        raise HTTPException(status_code=404, detail="Kewajiban tidak ditemukan")
+    return {"obligation": sub_public(doc)}
 
 
-@api_router.put("/subscriptions/{sub_id}")
-async def update_subscription(sub_id: str, body: SubscriptionBody, user: dict = Depends(get_current_user)):
-    doc = await db.subscriptions.find_one(
+@api_router.put("/obligations/{sub_id}")
+async def update_obligation(sub_id: str, body: ObligationBody, user: dict = Depends(get_current_user)):
+    if body.type not in OBLIGATION_TYPES:
+        raise HTTPException(status_code=422, detail="Jenis kewajiban tidak dikenal")
+    doc = await db.obligations.find_one(
         {"id": sub_id, "user_id": user["user_id"], "deleted_at": None})
     if not doc:
-        raise HTTPException(status_code=404, detail="Langganan tidak ditemukan")
+        raise HTTPException(status_code=404, detail="Kewajiban tidak ditemukan")
     await ensure_distinct_registered_with(
         user["user_id"], body.name, body.registered_with, exclude_id=sub_id)
     update = {**body.model_dump(), "updated_at": now_utc().isoformat()}
-    await db.subscriptions.update_one({"id": sub_id}, {"$set": update})
-    updated = await db.subscriptions.find_one({"id": sub_id}, {"_id": 0})
-    return {"subscription": sub_public(updated)}
+    await db.obligations.update_one({"id": sub_id}, {"$set": update})
+    updated = await db.obligations.find_one({"id": sub_id}, {"_id": 0})
+    return {"obligation": sub_public(updated)}
 
 
-@api_router.delete("/subscriptions/{sub_id}")
-async def delete_subscription(sub_id: str, user: dict = Depends(get_current_user)):
-    doc = await db.subscriptions.find_one(
+@api_router.delete("/obligations/{sub_id}")
+async def delete_obligation(sub_id: str, user: dict = Depends(get_current_user)):
+    doc = await db.obligations.find_one(
         {"id": sub_id, "user_id": user["user_id"], "deleted_at": None})
     if not doc:
-        raise HTTPException(status_code=404, detail="Langganan tidak ditemukan")
-    await db.subscriptions.update_one(
+        raise HTTPException(status_code=404, detail="Kewajiban tidak ditemukan")
+    await db.obligations.update_one(
         {"id": sub_id}, {"$set": {"deleted_at": now_utc().isoformat()}})
     return {"status": "deleted"}
+
+
+def _next_due_after(due: date, cycle: str) -> date:
+    if cycle == "yearly":
+        try:
+            return due.replace(year=due.year + 1)
+        except ValueError:  # Feb 29 on a non-leap year
+            return due.replace(year=due.year + 1, day=28)
+    if cycle == "weekly":
+        return due + timedelta(days=7)
+    # monthly — clamp to the last day of the target month (e.g. Jan 31 -> Feb 28)
+    month = due.month + 1
+    year = due.year + (1 if month > 12 else 0)
+    month = 1 if month > 12 else month
+    last_day = calendar.monthrange(year, month)[1]
+    return due.replace(year=year, month=month, day=min(due.day, last_day))
+
+
+@api_router.put("/obligations/{sub_id}/pay")
+async def pay_obligation(sub_id: str, body: ObligationPayBody, user: dict = Depends(get_current_user)):
+    """Tandai satu periode lunas. Kalau periode yang ditandai adalah periode
+    `next_due_date` saat ini, tanggal jatuh tempo otomatis maju ke periode
+    berikutnya (mengikuti `billing_cycle`) — sama seperti user mengedit
+    manual, tapi tanpa perlu buka form edit tiap bulan."""
+    doc = await db.obligations.find_one(
+        {"id": sub_id, "user_id": user["user_id"], "deleted_at": None})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Kewajiban tidak ditemukan")
+    amount_paid = body.amount_paid if body.amount_paid is not None else doc.get("price", 0)
+    period_status = dict(doc.get("period_status", {}))
+    period_status[body.period] = {
+        "paid": True,
+        "paid_at": now_utc().isoformat(),
+        "amount_paid": amount_paid,
+    }
+    update = {"period_status": period_status, "updated_at": now_utc().isoformat()}
+    try:
+        due = date.fromisoformat(doc.get("next_due_date"))
+        if due.strftime("%Y-%m") == body.period:
+            update["next_due_date"] = _next_due_after(due, doc.get("billing_cycle", "monthly")).isoformat()
+    except Exception:
+        pass
+    await db.obligations.update_one({"id": sub_id}, {"$set": update})
+    updated = await db.obligations.find_one({"id": sub_id}, {"_id": 0})
+    return {"obligation": sub_public(updated)}
 
 
 # ---------------------------------------------------------------------------
@@ -1540,7 +1624,7 @@ async def list_whats_new(user: dict = Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 @api_router.get("/dashboard")
 async def dashboard(user: dict = Depends(get_current_user)):
-    docs = await db.subscriptions.find(
+    docs = await db.obligations.find(
         {"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(500)
 
     total_monthly = 0.0
@@ -2134,13 +2218,13 @@ async def consume_wa_quota(user: dict) -> bool:
 async def reminder_sweep():
     today = date.today()
 
-    # Personal subscriptions -> WhatsApp for anyone with WA enabled + phone;
+    # Personal obligations -> WhatsApp for anyone with WA enabled + phone;
     # Free is capped at FREE_WA_NOTIF_LIMIT/month via consume_wa_quota, Premium unlimited.
     users = await db.users.find(
         {"notify_channels.whatsapp": True, "phone": {"$nin": [None, ""]}}, {"_id": 0}
     ).to_list(1000)
     for u in users:
-        subs = await db.subscriptions.find(
+        subs = await db.obligations.find(
             {"user_id": u["user_id"], "deleted_at": None}, {"_id": 0}).to_list(500)
         for s in subs:
             try:
@@ -2263,7 +2347,7 @@ async def build_and_send_monthly_summary(user: dict, period: str) -> bool:
         {"user_id": user["user_id"], "period": period}, {"_id": 0})
     if not snapshot:
         return False
-    subs = await db.subscriptions.find(
+    subs = await db.obligations.find(
         {"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(500)
     by_cat: dict = {}
     for d in subs:
@@ -2389,7 +2473,7 @@ class TestReminderBody(BaseModel):
 
 @api_router.post("/test/send-reminder")
 async def test_send_reminder(body: TestReminderBody, user: dict = Depends(get_current_user)):
-    sub = await db.subscriptions.find_one(
+    sub = await db.obligations.find_one(
         {"id": body.subscription_id, "user_id": user["user_id"], "deleted_at": None}, {"_id": 0})
     if not sub:
         raise HTTPException(status_code=404, detail="Langganan tidak ditemukan")
@@ -2574,7 +2658,7 @@ async def enrich_users(docs: List[dict]) -> List[dict]:
     the Excel export so both always show identical data."""
     sub_counts = await asyncio.gather(
         *[
-            db.subscriptions.count_documents({"user_id": d["user_id"], "deleted_at": None})
+            db.obligations.count_documents({"user_id": d["user_id"], "deleted_at": None})
             for d in docs
         ]
     )
@@ -2665,7 +2749,7 @@ async def admin_stats(_: None = Depends(require_admin)):
 
     total_users = await db.users.count_documents({"deleted_at": None})
     premium_users = await db.users.count_documents({"deleted_at": None, "plan": "premium"})
-    total_subs = await db.subscriptions.count_documents({"deleted_at": None})
+    total_subs = await db.obligations.count_documents({"deleted_at": None})
 
     return {
         "total_users": total_users,
@@ -2821,7 +2905,7 @@ async def admin_purge_user(body: AdminConfirmEmailBody, _: None = Depends(requir
     uid = body.user_id
     await db.users.delete_one({"user_id": uid})
     await db.user_sessions.delete_many({"user_id": uid})
-    await db.subscriptions.delete_many({"user_id": uid})
+    await db.obligations.delete_many({"user_id": uid})
     await db.groups.update_many({"members.user_id": uid}, {"$pull": {"members": {"user_id": uid}}})
     logger.warning(f"Admin permanently purged user: {user.get('email')} ({uid})")
     return {"status": "ok"}
@@ -4627,8 +4711,8 @@ async def startup():
         await db.users.create_index("user_id", unique=True)
         await db.user_sessions.create_index("session_token", unique=True)
         await db.user_sessions.create_index("user_id")
-        await db.subscriptions.create_index("user_id")
-        await db.subscriptions.create_index("id", unique=True)
+        await db.obligations.create_index("user_id")
+        await db.obligations.create_index("id", unique=True)
         await db.groups.create_index("id", unique=True)
         await db.groups.create_index("invite_code", unique=True)
         await db.groups.create_index("members.user_id")

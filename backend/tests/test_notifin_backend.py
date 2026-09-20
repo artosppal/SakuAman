@@ -171,10 +171,11 @@ class TestPassword:
 # --------------------- subscriptions + freemium ---------------------
 class TestSubscriptionsAndFreemium:
     created_ids = []
+    FREE_LIMIT = 8  # PLANS["free"]["max_obligations_active"], see docs/DATA_MODEL.md §7
 
     def _payload(self, name="Netflix", category="entertainment", cycle="monthly", price=54000):
         return {
-            "name": name, "category": category, "price": price,
+            "name": name, "type": "subscription", "category": category, "price": price,
             "billing_cycle": cycle, "next_due_date": "2026-02-10",
             "status": "paid", "reminders": [3, 1, 0], "notes": "TEST",
         }
@@ -182,19 +183,30 @@ class TestSubscriptionsAndFreemium:
     def test_create_three_subs_free_plan(self, s, free_user):
         tok = free_user["token"]
         for i, name in enumerate(["TEST_Netflix", "TEST_Spotify", "TEST_YouTube"]):
-            r = s.post(f"{API}/subscriptions",
+            r = s.post(f"{API}/obligations",
                        json=self._payload(name=name),
                        headers=auth(tok))
             assert r.status_code == 200, r.text
-            sub = r.json()["subscription"]
+            sub = r.json()["obligation"]
             assert sub["name"] == name
             self.__class__.created_ids.append(sub["id"])
         assert len(self.__class__.created_ids) == 3
 
     def test_freemium_limit_reached_on_4th(self, s, free_user):
-        r = s.post(f"{API}/subscriptions",
-                   json=self._payload(name="TEST_4th"),
-                   headers=auth(free_user["token"]))
+        # Fill up to the Free limit (3 already created above), then the next
+        # one past it must be blocked.
+        tok = free_user["token"]
+        for i in range(self.FREE_LIMIT - len(self.__class__.created_ids)):
+            r = s.post(f"{API}/obligations",
+                       json=self._payload(name=f"TEST_Filler{i}"),
+                       headers=auth(tok))
+            assert r.status_code == 200, r.text
+            self.__class__.created_ids.append(r.json()["obligation"]["id"])
+        assert len(self.__class__.created_ids) == self.FREE_LIMIT
+
+        r = s.post(f"{API}/obligations",
+                   json=self._payload(name="TEST_OverLimit"),
+                   headers=auth(tok))
         assert r.status_code == 403, r.text
         detail = r.json().get("detail")
         # FastAPI wraps dict details as-is
@@ -202,37 +214,37 @@ class TestSubscriptionsAndFreemium:
         assert detail.get("code") == "limit_reached"
 
     def test_list_and_verify_persistence(self, s, free_user):
-        r = s.get(f"{API}/subscriptions", headers=auth(free_user["token"]))
+        r = s.get(f"{API}/obligations", headers=auth(free_user["token"]))
         assert r.status_code == 200
-        subs = r.json()["subscriptions"]
+        subs = r.json()["obligations"]
         names = {x["name"] for x in subs}
         assert {"TEST_Netflix", "TEST_Spotify", "TEST_YouTube"}.issubset(names)
 
     def test_filter_by_category(self, s, free_user):
-        r = s.get(f"{API}/subscriptions?category=entertainment",
+        r = s.get(f"{API}/obligations?category=entertainment",
                   headers=auth(free_user["token"]))
         assert r.status_code == 200
-        for x in r.json()["subscriptions"]:
+        for x in r.json()["obligations"]:
             assert x["category"] == "entertainment"
 
     def test_filter_by_status(self, s, free_user):
-        r = s.get(f"{API}/subscriptions?status=paid",
+        r = s.get(f"{API}/obligations?status=paid",
                   headers=auth(free_user["token"]))
         assert r.status_code == 200
-        for x in r.json()["subscriptions"]:
+        for x in r.json()["obligations"]:
             assert x["status"] == "paid"
 
     def test_update_subscription_and_verify(self, s, free_user):
         sub_id = self.__class__.created_ids[0]
         body = self._payload(name="TEST_Netflix_Updated", price=79000)
-        r = s.put(f"{API}/subscriptions/{sub_id}", json=body,
+        r = s.put(f"{API}/obligations/{sub_id}", json=body,
                   headers=auth(free_user["token"]))
         assert r.status_code == 200
-        assert r.json()["subscription"]["name"] == "TEST_Netflix_Updated"
+        assert r.json()["obligation"]["name"] == "TEST_Netflix_Updated"
         # GET to verify persistence
-        r2 = s.get(f"{API}/subscriptions/{sub_id}", headers=auth(free_user["token"]))
+        r2 = s.get(f"{API}/obligations/{sub_id}", headers=auth(free_user["token"]))
         assert r2.status_code == 200
-        assert r2.json()["subscription"]["price"] == 79000
+        assert r2.json()["obligation"]["price"] == 79000
 
     def test_upgrade_requires_configured_mayar(self, s, free_user):
         # /auth/upgrade now starts a real Mayar checkout instead of flipping
@@ -265,12 +277,78 @@ class TestSubscriptionsAndFreemium:
         assert r.json()["action"] == "upgraded_to_premium"
         r_me = s.get(f"{API}/auth/me", headers=auth(free_user["token"]))
         assert r_me.json()["user"]["plan"] == "premium"
-        # Now 4th should succeed
-        r2 = s.post(f"{API}/subscriptions",
-                    json=self._payload(name="TEST_4thPremium"),
+        # Now past-the-free-limit creation should succeed
+        r2 = s.post(f"{API}/obligations",
+                    json=self._payload(name="TEST_PastLimitPremium"),
                     headers=auth(free_user["token"]))
         assert r2.status_code == 200, r2.text
-        self.__class__.created_ids.append(r2.json()["subscription"]["id"])
+        self.__class__.created_ids.append(r2.json()["obligation"]["id"])
+
+
+# --------------------- obligations: pay a period ---------------------
+class TestObligationsPay:
+    def _user(self, s):
+        email = f"test_pay_{uuid.uuid4().hex[:10]}@example.com"
+        data = register_verified(s, email, "rahasia123", "TEST Pay")
+        return data["session_token"]
+
+    def _create(self, s, tok, **overrides):
+        body = {
+            "name": "TEST_Listrik", "type": "recurring_bill", "category": "utilities",
+            "price": 250000, "billing_cycle": "monthly", "next_due_date": "2026-03-10",
+            "status": "paid", "reminders": [3, 1, 0],
+        }
+        body.update(overrides)
+        r = s.post(f"{API}/obligations", json=body, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        return r.json()["obligation"]
+
+    def test_pay_current_period_advances_next_due_date(self, s):
+        tok = self._user(s)
+        ob = self._create(s, tok, next_due_date="2026-03-10", billing_cycle="monthly")
+        r = s.put(f"{API}/obligations/{ob['id']}/pay",
+                   json={"period": "2026-03"}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        updated = r.json()["obligation"]
+        assert updated["period_status"]["2026-03"]["paid"] is True
+        assert updated["period_status"]["2026-03"]["amount_paid"] == 250000
+        # billing_cycle=monthly -> next_due_date should jump a month ahead
+        assert updated["next_due_date"] == "2026-04-10"
+
+    def test_pay_yearly_cycle_advances_a_year(self, s):
+        tok = self._user(s)
+        ob = self._create(s, tok, name="TEST_SPP_Tahunan", type="tuition",
+                           billing_cycle="yearly", next_due_date="2026-07-01")
+        r = s.put(f"{API}/obligations/{ob['id']}/pay",
+                   json={"period": "2026-07"}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        assert r.json()["obligation"]["next_due_date"] == "2027-07-01"
+
+    def test_pay_custom_amount_overrides_price(self, s):
+        tok = self._user(s)
+        ob = self._create(s, tok, price=250000)
+        r = s.put(f"{API}/obligations/{ob['id']}/pay",
+                   json={"period": "2026-03", "amount_paid": 275000}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        assert r.json()["obligation"]["period_status"]["2026-03"]["amount_paid"] == 275000
+
+    def test_pay_past_period_does_not_move_next_due_date(self, s):
+        tok = self._user(s)
+        ob = self._create(s, tok, next_due_date="2026-03-10")
+        # Marking an earlier period lunas (e.g. catching up cicilan history)
+        # shouldn't touch the still-upcoming next_due_date.
+        r = s.put(f"{API}/obligations/{ob['id']}/pay",
+                   json={"period": "2026-02"}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        updated = r.json()["obligation"]
+        assert updated["next_due_date"] == "2026-03-10"
+        assert updated["period_status"]["2026-02"]["paid"] is True
+
+    def test_pay_unknown_obligation_404(self, s):
+        tok = self._user(s)
+        r = s.put(f"{API}/obligations/does-not-exist/pay",
+                   json={"period": "2026-03"}, headers=auth(tok))
+        assert r.status_code == 404
 
 
 # --------------------- dashboard ---------------------
@@ -406,14 +484,14 @@ class TestPushRegister:
 # --------------------- cleanup ---------------------
 class TestCleanup:
     def test_soft_delete_subs(self, s, free_user):
-        # Fetch all TEST_ subs and delete
-        r = s.get(f"{API}/subscriptions", headers=auth(free_user["token"]))
-        for sub in r.json()["subscriptions"]:
+        # Fetch all TEST_ obligations and delete
+        r = s.get(f"{API}/obligations", headers=auth(free_user["token"]))
+        for sub in r.json()["obligations"]:
             if sub["name"].startswith("TEST_"):
-                d = s.delete(f"{API}/subscriptions/{sub['id']}",
+                d = s.delete(f"{API}/obligations/{sub['id']}",
                              headers=auth(free_user["token"]))
                 assert d.status_code == 200
         # Verify soft-delete: GET returns 404
-        r2 = s.get(f"{API}/subscriptions", headers=auth(free_user["token"]))
-        remaining = [x for x in r2.json()["subscriptions"] if x["name"].startswith("TEST_")]
+        r2 = s.get(f"{API}/obligations", headers=auth(free_user["token"]))
+        remaining = [x for x in r2.json()["obligations"] if x["name"].startswith("TEST_")]
         assert remaining == []

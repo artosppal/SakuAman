@@ -299,7 +299,7 @@ class TestDashboardHighlights:
         today = date.today()
 
         # Cheap monthly
-        s.post(f"{API}/subscriptions", json={
+        s.post(f"{API}/obligations", json={
             "name": "TEST_Cheap", "category": "music", "price": 50000,
             "billing_cycle": "monthly",
             "next_due_date": (today + timedelta(days=5)).isoformat(),
@@ -307,7 +307,7 @@ class TestDashboardHighlights:
         }, headers=auth(u["token"]))
 
         # Expensive yearly -> monthly-normalized should be 1200000/12=100000
-        s.post(f"{API}/subscriptions", json={
+        s.post(f"{API}/obligations", json={
             "name": "TEST_Expensive_Yearly", "category": "productivity", "price": 1200000,
             "billing_cycle": "yearly",
             "next_due_date": (today + timedelta(days=30)).isoformat(),
@@ -315,7 +315,7 @@ class TestDashboardHighlights:
         }, headers=auth(u["token"]))
 
         # Trial ending in 5 days -> should appear in ending_trials
-        s.post(f"{API}/subscriptions", json={
+        s.post(f"{API}/obligations", json={
             "name": "TEST_TrialSoon", "category": "productivity", "price": 0,
             "billing_cycle": "monthly",
             "next_due_date": (today + timedelta(days=5)).isoformat(),
@@ -323,7 +323,7 @@ class TestDashboardHighlights:
         }, headers=auth(u["token"]))
 
         # Trial 20 days out — should NOT appear
-        s.post(f"{API}/subscriptions", json={
+        s.post(f"{API}/obligations", json={
             "name": "TEST_TrialFar", "category": "productivity", "price": 0,
             "billing_cycle": "monthly",
             "next_due_date": (today + timedelta(days=20)).isoformat(),
