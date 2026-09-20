@@ -479,6 +479,113 @@ class TestBudgets:
         assert all(b["category"] != "health" for b in budgets)
 
 
+# --------------------- payday ---------------------
+class TestPayday:
+    def _user(self, s):
+        email = f"test_payday_{uuid.uuid4().hex[:10]}@example.com"
+        data = register_verified(s, email, "rahasia123", "TEST Payday")
+        return data["session_token"]
+
+    def test_set_payday_round_trips(self, s):
+        tok = self._user(s)
+        r = s.put(f"{API}/auth/payday", json={"payday": 25}, headers=auth(tok))
+        assert r.status_code == 200, r.text
+        assert r.json()["user"]["payday"] == 25
+        me = s.get(f"{API}/auth/me", headers=auth(tok))
+        assert me.json()["user"]["payday"] == 25
+
+    def test_payday_out_of_range_422(self, s):
+        tok = self._user(s)
+        for bad in (0, 32, -1):
+            r = s.put(f"{API}/auth/payday", json={"payday": bad}, headers=auth(tok))
+            assert r.status_code == 422, f"payday={bad} should be rejected"
+
+
+# --------------------- saku aman ---------------------
+class TestSakuAman:
+    def _user(self, s):
+        email = f"test_saku_{uuid.uuid4().hex[:10]}@example.com"
+        data = register_verified(s, email, "rahasia123", "TEST Saku")
+        return data["session_token"]
+
+    def test_not_configured_without_any_budget(self, s):
+        tok = self._user(s)
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        assert r.status_code == 200, r.text
+        d = r.json()
+        assert d["configured"] is False
+        assert d["safe_amount"] == 0
+
+    def test_configured_with_budget_only(self, s):
+        tok = self._user(s)
+        s.put(f"{API}/budgets/food", json={"monthly_amount": 1000000}, headers=auth(tok))
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        d = r.json()
+        assert d["configured"] is True
+        assert d["total_budget"] == 1000000
+        assert d["safe_amount"] == 1000000
+
+    def test_spending_reduces_safe_amount(self, s):
+        tok = self._user(s)
+        s.put(f"{API}/budgets/food", json={"monthly_amount": 1000000}, headers=auth(tok))
+        today = date.today().isoformat()
+        s.post(f"{API}/transactions",
+               json={"kind": "expense", "amount": 150000, "category": "food", "date": today},
+               headers=auth(tok))
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        d = r.json()
+        assert d["total_spent"] == 150000
+        assert d["safe_amount"] == 1000000 - 150000
+
+    def test_unpaid_obligation_due_soon_is_reserved(self, s):
+        tok = self._user(s)
+        s.put(f"{API}/budgets/food", json={"monthly_amount": 1000000}, headers=auth(tok))
+        due = (date.today() + timedelta(days=2)).isoformat()
+        s.post(f"{API}/obligations",
+               json={"name": "TEST_Listrik", "type": "recurring_bill", "category": "utilities",
+                     "price": 300000, "billing_cycle": "monthly", "next_due_date": due,
+                     "status": "paid", "reminders": [3, 1, 0]},
+               headers=auth(tok))
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        d = r.json()
+        assert d["upcoming_obligations_reserved"] == 300000
+        assert d["safe_amount"] == 1000000 - 300000
+
+    def test_paid_obligation_not_reserved(self, s):
+        tok = self._user(s)
+        s.put(f"{API}/budgets/food", json={"monthly_amount": 1000000}, headers=auth(tok))
+        due = (date.today() + timedelta(days=2)).isoformat()
+        ob = s.post(f"{API}/obligations",
+                    json={"name": "TEST_Air", "type": "recurring_bill", "category": "utilities",
+                          "price": 100000, "billing_cycle": "monthly", "next_due_date": due,
+                          "status": "paid", "reminders": [3, 1, 0]},
+                    headers=auth(tok)).json()["obligation"]
+        period = due[:7]
+        s.put(f"{API}/obligations/{ob['id']}/pay", json={"period": period}, headers=auth(tok))
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        d = r.json()
+        assert d["upcoming_obligations_reserved"] == 0
+        assert d["safe_amount"] == 1000000
+
+    def test_period_follows_payday_when_set(self, s):
+        tok = self._user(s)
+        # A payday that has already occurred this month (<=28 so it's valid
+        # in every month, and <= today.day so "today >= this month's payday"
+        # holds regardless of which day the suite runs on).
+        payday = min(date.today().day, 28)
+        s.put(f"{API}/auth/payday", json={"payday": payday}, headers=auth(tok))
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        d = r.json()
+        assert d["payday"] == payday
+        assert date.fromisoformat(d["period_start"]).day == payday
+
+    def test_period_defaults_to_calendar_month_without_payday(self, s):
+        tok = self._user(s)
+        r = s.get(f"{API}/saku-aman", headers=auth(tok))
+        d = r.json()
+        assert date.fromisoformat(d["period_start"]).day == 1
+
+
 # --------------------- dashboard ---------------------
 class TestDashboard:
     def test_dashboard_structure(self, s, free_user):

@@ -221,6 +221,7 @@ def public_user(u: dict) -> dict:
         "onboarding_completed": bool(u.get("onboarding_completed")),
         "has_password": bool(u.get("password_hash")),
         "referral_code": u.get("referral_code"),
+        "payday": u.get("payday"),
     }
 
 
@@ -1159,6 +1160,19 @@ async def update_channels(body: ChannelsBody, user: dict = Depends(get_current_u
     return {"user": public_user(updated)}
 
 
+class PaydayBody(BaseModel):
+    payday: int  # tanggal 1-31; "bulan keuangan" mengikuti tanggal ini alih-alih kalender 1-31
+
+
+@api_router.put("/auth/payday")
+async def set_payday(body: PaydayBody, user: dict = Depends(get_current_user)):
+    if not (1 <= body.payday <= 31):
+        raise HTTPException(status_code=422, detail="Tanggal gajian harus antara 1 dan 31")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"payday": body.payday}})
+    updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+    return {"user": public_user(updated)}
+
+
 class ChangePasswordBody(BaseModel):
     current_password: Optional[str] = None
     new_password: str
@@ -1645,6 +1659,101 @@ async def delete_budget(category: str, user: dict = Depends(get_current_user)):
     dihitung' (docs/DATA_MODEL.md §7 #4), bukan otomatis jadi 0."""
     await db.budgets.delete_one({"user_id": user["user_id"], "category": category})
     return {"status": "deleted"}
+
+
+# ---------------------------------------------------------------------------
+# Saku Aman — sisa uang yang aman dipakai hari ini sampai gajian berikutnya,
+# plus proyeksi "diperkirakan habis tanggal X" (docs/DATA_MODEL.md §4).
+# Rumus (semua di sisi server, tanpa AI, linear sederhana):
+#   saku_aman = total_anggaran_bulanan
+#             - total_transaksi_expense_di_bulan_keuangan_berjalan
+#             - total_obligations_jatuh_tempo_sebelum_gajian_berikutnya_yang_belum_lunas
+# "Bulan keuangan" mengikuti tanggal gajian user (payday), bukan kalender
+# 1-31, kecuali payday belum diisi (fallback ke kalender — §7 #5).
+# ---------------------------------------------------------------------------
+def _payday_date_in_month(year: int, month: int, payday: int) -> date:
+    last_day = calendar.monthrange(year, month)[1]
+    return date(year, month, min(payday, last_day))
+
+
+def financial_month_window(payday: Optional[int], today: date) -> tuple:
+    """Returns (start, end) inclusive — start di tanggal gajian bulan ini
+    (atau bulan lalu kalau gajian bulan ini belum lewat), end sehari sebelum
+    gajian berikutnya. Tanpa payday: window = kalender 1-31 bulan berjalan."""
+    if not payday:
+        start = today.replace(day=1)
+        last_day = calendar.monthrange(today.year, today.month)[1]
+        return start, today.replace(day=last_day)
+
+    this_month_payday = _payday_date_in_month(today.year, today.month, payday)
+    if today >= this_month_payday:
+        ny, nm = (today.year + 1, 1) if today.month == 12 else (today.year, today.month + 1)
+        next_payday = _payday_date_in_month(ny, nm, payday)
+        return this_month_payday, next_payday - timedelta(days=1)
+    py, pm = (today.year - 1, 12) if today.month == 1 else (today.year, today.month - 1)
+    prev_payday = _payday_date_in_month(py, pm, payday)
+    return prev_payday, this_month_payday - timedelta(days=1)
+
+
+async def compute_saku_aman(user: dict) -> dict:
+    today = date.today()
+    payday = user.get("payday")
+    start, end = financial_month_window(payday, today)
+
+    budgets = await db.budgets.find({"user_id": user["user_id"]}, {"_id": 0}).to_list(200)
+    total_budget = sum(b.get("monthly_amount", 0) for b in budgets)
+    configured = total_budget > 0
+
+    txns = await db.transactions.find({
+        "user_id": user["user_id"], "deleted_at": None, "kind": "expense",
+        "date": {"$gte": start.isoformat(), "$lte": end.isoformat()},
+    }, {"_id": 0}).to_list(5000)
+    total_spent = sum(t.get("amount", 0) for t in txns)
+
+    obligations = await db.obligations.find(
+        {"user_id": user["user_id"], "deleted_at": None}, {"_id": 0}).to_list(500)
+    reserved = 0.0
+    for o in obligations:
+        try:
+            due = date.fromisoformat(o.get("next_due_date"))
+        except Exception:
+            continue
+        if today <= due <= end:
+            period = due.strftime("%Y-%m")
+            paid = ((o.get("period_status") or {}).get(period) or {}).get("paid", False)
+            if not paid:
+                reserved += o.get("price", 0)
+
+    safe_amount = (total_budget - total_spent - reserved) if configured else 0.0
+
+    days_elapsed = (today - start).days + 1
+    days_left = (end - today).days + 1
+    avg_daily_spend = (total_spent / days_elapsed) if days_elapsed > 0 else 0.0
+
+    projection = {"will_run_out": False, "run_out_date": None}
+    if configured and avg_daily_spend > 0:
+        days_of_safety = safe_amount / avg_daily_spend
+        if days_of_safety < days_left:
+            run_out_date = today + timedelta(days=max(0, int(days_of_safety)))
+            projection = {"will_run_out": True, "run_out_date": run_out_date.isoformat()}
+
+    return {
+        "configured": configured,
+        "safe_amount": round(safe_amount),
+        "period_start": start.isoformat(),
+        "period_end": end.isoformat(),
+        "days_left_in_period": days_left,
+        "total_budget": round(total_budget),
+        "total_spent": round(total_spent),
+        "upcoming_obligations_reserved": round(reserved),
+        "projection": projection,
+        "payday": payday,
+    }
+
+
+@api_router.get("/saku-aman")
+async def saku_aman(user: dict = Depends(get_current_user)):
+    return await compute_saku_aman(user)
 
 
 # ---------------------------------------------------------------------------
